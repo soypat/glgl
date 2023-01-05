@@ -25,7 +25,7 @@ type AttribLayout struct {
 	// of the type are present at the attribute location.
 	//
 	// Example:
-	// When w orking with a vec3 attribute in the shader source code
+	// When working with a vec3 attribute in the shader source code
 	// with a gl.Float type, then the Packing is 3 since there are
 	// 3 floats packed at each attribute location.
 	Packing int
