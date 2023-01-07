@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/soypat/glgl/v4.6-core/glgl"
 	"golang.org/x/exp/slog"
 )
@@ -23,19 +22,22 @@ const (
 var compute string
 
 func main() {
-	_, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:   "compute",
 		Version: [2]int{4, 6},
 		Width:   width,
 		Height:  height,
 	})
 	if err != nil {
-		panic(err)
+		slog.Error("initializing", err)
+		return
 	}
-	defer glfw.Terminate()
+	defer terminate()
+
 	ss, err := glgl.ParseCombined(strings.NewReader(compute))
 	if err != nil {
-		panic(err)
+		slog.Error("parsing", err)
+		return
 	}
 	prog, err := glgl.NewProgram(ss)
 	if err != nil {
@@ -45,7 +47,8 @@ func main() {
 	prog.Bind()
 	err = prog.SetUniform1f("u_adder\x00", addThis)
 	if err != nil {
-		panic(err)
+		slog.Error("setting uniform", err)
+		return
 	}
 	const unit = 0
 	cfg := glgl.TextureImgConfig{
@@ -63,17 +66,20 @@ func main() {
 	dst := make([]float32, width*height)
 	tex, err := glgl.NewTextureFromImage(cfg, dst)
 	if err != nil {
-		panic(err)
+		slog.Error("creating texture", err)
+		return
 	}
 	// Dispatch and wait for compute to finish.
 	err = prog.RunCompute(width, height, 1)
 	if err != nil {
-		panic(err)
+		slog.Error("running compute shader", err)
+		return
 	}
 
 	err = glgl.GetImage(dst, tex, cfg)
 	if err != nil {
-		panic(err)
+		slog.Error("acquiring results from GPU", err)
+		return
 	}
 	fmt.Println(dst)
 }

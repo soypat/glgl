@@ -1,4 +1,4 @@
-package main
+package mat
 
 // DO NOT EDIT.
 // This file was generated automatically

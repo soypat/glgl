@@ -38,7 +38,7 @@ func init() {
 }
 
 func Example_helloComputeWorld() {
-	window, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+	window, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "Hello Compute World",
 		Width:         80,
 		Height:        80,
@@ -51,7 +51,7 @@ func Example_helloComputeWorld() {
 		slog.Error("failed to initialize", err)
 		os.Exit(1)
 	}
-	defer glfw.Terminate()
+	defer terminate()
 	defer window.Destroy()
 	source, err := glgl.ParseCombined(strings.NewReader(`
 #shader vertex
@@ -176,7 +176,7 @@ void main() {
 		0, 1, 2, // Lower right triangle.
 		0, 2, 3, // Upper left triangle.
 	}
-	window, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+	window, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "Index Buffers",
 		Width:         800,
 		Height:        800,
@@ -185,7 +185,7 @@ void main() {
 		OpenGLProfile: glfw.OpenGLCoreProfile,
 		ForwardCompat: true,
 	})
-	defer glfw.Terminate()
+	defer terminate()
 	fmt.Println("OpenGL version", glgl.Version())
 
 	// Separate vertex and fragment shaders from source code.

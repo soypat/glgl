@@ -33,17 +33,20 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 		shaderVertex
 		shaderFragment
 		shaderCompute
+		shaderHeader
 		shaderNum
 	)
 	nothing := bytes.NewBuffer(nil)
 	vertexBuf := bytes.NewBuffer(nil)
 	fragBuf := bytes.NewBuffer(nil)
 	computeBuf := bytes.NewBuffer(nil)
+	includeBuf := bytes.NewBuffer(nil)
 	buffers := [shaderNum]*bytes.Buffer{
 		shaderNone:     nothing,
 		shaderVertex:   vertexBuf,
 		shaderFragment: fragBuf,
 		shaderCompute:  computeBuf,
+		shaderHeader:   includeBuf,
 	}
 	scanner := bufio.NewScanner(r)
 	currentShader := shaderNone
@@ -54,27 +57,47 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 			buffers[currentShader].WriteByte('\n')
 			continue
 		}
-		if bytes.Index(line, []byte("vertex")) > 0 {
+		got := bytes.Fields(line)
+		if len(got) != 2 {
+			continue
+		}
+		switch string(got[1]) {
+		case "includeashead":
+			currentShader = shaderHeader
+		case "vertex":
 			currentShader = shaderVertex
-		} else if bytes.Index(line, []byte("fragment")) > 0 {
+		case "fragment", "pixel":
 			currentShader = shaderFragment
-		} else if bytes.Index(line, []byte("compute")) > 0 {
+		case "compute":
 			currentShader = shaderCompute
+		default:
+			return ShaderSource{}, errors.New("unexpected #shader pragma value:" + string(got[1]))
 		}
 	}
-
-	// Null terminated strings.
+	isrc := includeBuf.Bytes()
+	var vsrc, fsrc, csrc []byte
 	if vertexBuf.Len() > 0 {
+		vsrc = append(vsrc, isrc...)
 		vertexBuf.WriteByte(0)
+		vsrc = append(vsrc, vertexBuf.Bytes()...)
 	}
 	if computeBuf.Len() > 0 {
+		csrc = append(csrc, isrc...)
 		computeBuf.WriteByte(0)
+		csrc = append(csrc, computeBuf.Bytes()...)
 	}
 	if fragBuf.Len() > 0 {
+		fsrc = append(fsrc, isrc...)
 		fragBuf.WriteByte(0)
+		fsrc = append(fsrc, fragBuf.Bytes()...)
 	}
-	return ShaderSource{Vertex: vertexBuf.String(),
-		Fragment: fragBuf.String(), Compute: computeBuf.String()}, scanner.Err()
+	return ShaderSource{
+			Vertex:   string(vsrc),
+			Fragment: string(fsrc),
+			Compute:  string(csrc),
+			Include:  string(isrc),
+		},
+		scanner.Err()
 }
 
 // CompileBasic compiles two OpenGL vertex and fragment shaders
@@ -90,7 +113,6 @@ func compileSources(ss ShaderSource) (program uint32, err error) {
 		gl.AttachShader(program, vid)
 		// We can clean up.
 		defer gl.DeleteShader(vid)
-
 	}
 	if len(ss.Fragment) > 0 {
 		fid, err := compile(gl.FRAGMENT_SHADER, ss.Fragment)
@@ -124,13 +146,18 @@ func compileSources(ss ShaderSource) (program uint32, err error) {
 	return program, nil
 }
 
-func compile(shaderType uint32, sourceCode string) (uint32, error) {
-	if !strings.HasSuffix(sourceCode, "\x00") {
-		return 0, errors.New("source missing null terminator")
+func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
+	var sourceLengths []int32
+	for i := range sourceCodes {
+		if !strings.HasSuffix(sourceCodes[i], "\x00") {
+			return 0, errors.New("source missing null terminator")
+		}
+		sourceLengths = append(sourceLengths, int32(len(sourceCodes[i])))
 	}
+
 	id := gl.CreateShader(shaderType)
-	csources, free := gl.Strs(sourceCode)
-	gl.ShaderSource(id, 1, csources, nil)
+	csources, free := gl.Strs(sourceCodes...)
+	gl.ShaderSource(id, int32(len(sourceCodes)), csources, &sourceLengths[0])
 	free()
 	gl.CompileShader(id)
 

@@ -1,4 +1,4 @@
-// go:build generate
+//go:build generate
 
 // Generates the mat package.
 package main
@@ -13,7 +13,7 @@ import (
 const (
 	filename = "mat_generated.go"
 	ftype    = "float32"
-	pkg      = "main"
+	pkg      = "mat"
 	colmajor = false
 	header   = `package ` + pkg + `
 

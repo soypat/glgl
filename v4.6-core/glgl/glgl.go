@@ -235,11 +235,18 @@ type ShaderSource struct {
 	Vertex   string
 	Fragment string
 	Compute  string
+	Include  string
 }
 
 func NewProgram(ss ShaderSource) (prog Program, err error) {
 	if ss.Compute != "" && (ss.Fragment != "" || ss.Vertex != "") {
-		return Program{rid: 0}, errors.New("cannot compile compute and frag/vertex together")
+		return Program{}, errors.New("cannot compile compute and frag/vertex together")
+	}
+	if ss.Compute == "" && ss.Fragment == "" && ss.Vertex == "" {
+		if ss.Include != "" {
+			return Program{}, errors.New("only found `#shader include` part of program")
+		}
+		return Program{}, errors.New("empty program")
 	}
 	prog.rid, err = compileSources(ss)
 	return prog, err

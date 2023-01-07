@@ -6,40 +6,41 @@ import (
 )
 
 type WindowConfig struct {
-	Title         string
-	NotResizable  bool
-	Version       [2]int
+	Title        string
+	NotResizable bool
+	Version      [2]int
+	// glfw.OpenGLCoreProfile
 	OpenGLProfile int
 	ForwardCompat bool
 	Width, Height int
 }
 
-func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, error) {
+func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, func(), error) {
 	if err := glfw.Init(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	glfw.WindowHint(glfw.Resizable, b2i(!cfg.NotResizable))
 	if cfg.Version != [2]int{} {
 		glfw.WindowHint(glfw.ContextVersionMajor, cfg.Version[0])
 		glfw.WindowHint(glfw.ContextVersionMinor, cfg.Version[1])
+	} else {
+		glfw.WindowHint(glfw.ContextVersionMajor, 4)
+		glfw.WindowHint(glfw.ContextVersionMinor, 6)
 	}
-	if cfg.OpenGLProfile != 0 {
-		glfw.WindowHint(glfw.OpenGLProfile, cfg.OpenGLProfile)
-	}
-
+	glfw.WindowHint(glfw.OpenGLProfile, zdefault(cfg.OpenGLProfile, glfw.OpenGLCoreProfile))
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, b2i(cfg.ForwardCompat))
 	window, err := glfw.CreateWindow(cfg.Width, cfg.Height, cfg.Title, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	window.MakeContextCurrent()
 	if err := gl.Init(); err != nil {
 		glfw.Terminate()
-		return window, err
+		return window, nil, err
 	}
 	ClearErrors()
-	return window, nil
+	return window, glfw.Terminate, nil
 }
 
 func b2i(b bool) int {
