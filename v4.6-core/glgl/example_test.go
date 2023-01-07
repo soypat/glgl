@@ -14,18 +14,134 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+const v = `#shader vertex
+#version 330
+
+out float v_myOutput;
+in float myInput;
+uniform float addThis;
+
+void main() {
+	v_myOutput = myInput + addThis;
+}
+#shader fragment
+#version 330
+in float v_myOutput;
+out float myOutput;
+void main() {
+	myOutput = v_myOutput;
+}`
+
 func init() {
 	// GLFW event handling must run on the main OS thread
 	runtime.LockOSThread()
 }
 
+func Example_helloComputeWorld() {
+	window, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:         "Hello Compute World",
+		Width:         80,
+		Height:        80,
+		NotResizable:  true,
+		Version:       [2]int{4, 6},
+		OpenGLProfile: glfw.OpenGLCoreProfile,
+		ForwardCompat: true,
+	})
+	if err != nil {
+		slog.Error("failed to initialize", err)
+		os.Exit(1)
+	}
+	defer glfw.Terminate()
+	defer window.Destroy()
+	source, err := glgl.ParseCombined(strings.NewReader(`
+#shader vertex
+#version 410
+
+in float inValue;
+
+out float outValue;
+
+void main() {
+	float modifiedValue = inValue + 10.0;
+	gl_Position = vec4(modifiedValue, 0.0, 0.0, 1.0);
+	outValue = modifiedValue;
+}
+#shader fragment
+#version 410
+
+in float outValue;
+out vec4 fragval;
+void main() {
+	fragval = vec4(outValue,0.0,0.0,1.0);
+}
+`))
+	prog, err := glgl.NewProgram(source)
+	if err != nil {
+		slog.Error("failed to initialize glfw", err)
+		os.Exit(1)
+	}
+	defer prog.Delete()
+	prog.Bind()
+	vao := glgl.NewVAO() // Configure the Vertex Array Object.
+	// Create the Position Buffer Object.
+	input := []float32{1, 2, 3}
+	output := make([]float32, len(input))
+	inputBO, err := glgl.NewVertexBuffer(glgl.StaticDraw, input)
+	if err != nil {
+		slog.Error("creating positions vertex buffer", err)
+		return
+	}
+	err = vao.AddAttribute(inputBO, glgl.AttribLayout{
+		Program: prog,
+		Type:    glgl.Float32,
+		Name:    "inValue\x00",
+		Packing: 1,
+		Stride:  1,
+	})
+	if err != nil {
+		slog.Error("adding input attribute", err)
+		return
+	}
+	outputBO, err := glgl.NewVertexBuffer(glgl.StaticRead, output)
+	if err != nil {
+		slog.Error("creating positions vertex buffer", err)
+		return
+	}
+	err = prog.BindFrag("finalValue\x00")
+	if err != nil {
+		slog.Error("binding frag", err)
+		return
+	}
+	err = vao.AddAttribute(outputBO, glgl.AttribLayout{
+		Program: prog,
+		Type:    glgl.Float32,
+		Name:    "outValue\x00",
+		Packing: 1,
+		Stride:  1,
+	})
+	if err != nil {
+		slog.Error("adding output attribute", err)
+		return
+	}
+	const uniform = 1
+	// Set uniform variable `u_color` in source code.
+	err = prog.SetUniform1f("addThis\x00", uniform)
+	if err != nil {
+		slog.Error("setting `addThis` uniform", err)
+	}
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, int32(len(input)))
+	err = glgl.GetBufferData(output, outputBO)
+	if err != nil {
+		slog.Error("getting buffer data", err)
+	}
+	fmt.Println(output)
+	// Output:
+	// [2, 3, 4]
+}
+
 func Example_coloredSquare() {
 	// Very basic index buffer example.
-	const (
-		projectName  = "Index Buffers"
-		windowWidth  = 800
-		windowHeight = 800
-		shader       = `
+	const shader = `
 #shader vertex
 #version 330
 
@@ -45,7 +161,7 @@ uniform vec4 u_color;
 void main() {
 	outputColor = u_color;
 }`
-	)
+
 	// Square with indices:
 	// 3----2
 	// |    |
@@ -60,32 +176,17 @@ void main() {
 		0, 1, 2, // Lower right triangle.
 		0, 2, 3, // Upper left triangle.
 	}
-	if err := glfw.Init(); err != nil {
-		slog.Error("failed to initialize glfw", err)
-		os.Exit(1)
-	}
+	window, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:         "Index Buffers",
+		Width:         800,
+		Height:        800,
+		NotResizable:  true,
+		Version:       [2]int{4, 6},
+		OpenGLProfile: glfw.OpenGLCoreProfile,
+		ForwardCompat: true,
+	})
 	defer glfw.Terminate()
-
-	glfw.WindowHint(glfw.Resizable, glfw.False)
-	glfw.WindowHint(glfw.ContextVersionMajor, 4)
-	glfw.WindowHint(glfw.ContextVersionMinor, 1)
-	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
-	window, err := glfw.CreateWindow(windowWidth, windowHeight, projectName, nil, nil)
-	if err != nil {
-		slog.Error("create glfw window failed", err)
-		return
-	}
-	window.MakeContextCurrent()
-	// Initialize Glow
-	if err := gl.Init(); err != nil {
-		slog.Error("init glow fail", err)
-		return
-	}
-	glgl.ClearErrors()
-
-	version := gl.GoStr(gl.GetString(gl.VERSION))
-	fmt.Println("OpenGL version", version)
+	fmt.Println("OpenGL version", glgl.Version())
 
 	// Separate vertex and fragment shaders from source code.
 	source, err := glgl.ParseCombined(strings.NewReader(shader))
@@ -112,7 +213,7 @@ void main() {
 	vao := glgl.NewVAO()
 
 	// Create the Position Buffer Object.
-	vbo, err := glgl.NewVertexBuffer(positions)
+	vbo, err := glgl.NewVertexBuffer(glgl.StaticDraw, positions)
 	if err != nil {
 		slog.Error("creating positions vertex buffer", err)
 		return
@@ -156,4 +257,6 @@ void main() {
 			window.SetShouldClose(true)
 		}
 	}
+	// Output:
+	// None.
 }

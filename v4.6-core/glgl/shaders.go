@@ -32,15 +32,18 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 		shaderNone = iota
 		shaderVertex
 		shaderFragment
+		shaderCompute
 		shaderNum
 	)
 	nothing := bytes.NewBuffer(nil)
 	vertexBuf := bytes.NewBuffer(nil)
 	fragBuf := bytes.NewBuffer(nil)
+	computeBuf := bytes.NewBuffer(nil)
 	buffers := [shaderNum]*bytes.Buffer{
 		shaderNone:     nothing,
 		shaderVertex:   vertexBuf,
 		shaderFragment: fragBuf,
+		shaderCompute:  computeBuf,
 	}
 	scanner := bufio.NewScanner(r)
 	currentShader := shaderNone
@@ -55,6 +58,8 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 			currentShader = shaderVertex
 		} else if bytes.Index(line, []byte("fragment")) > 0 {
 			currentShader = shaderFragment
+		} else if bytes.Index(line, []byte("compute")) > 0 {
+			currentShader = shaderCompute
 		}
 	}
 
@@ -62,33 +67,48 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 	if vertexBuf.Len() > 0 {
 		vertexBuf.WriteByte(0)
 	}
+	if computeBuf.Len() > 0 {
+		computeBuf.WriteByte(0)
+	}
 	if fragBuf.Len() > 0 {
 		fragBuf.WriteByte(0)
 	}
-	return ShaderSource{Vertex: vertexBuf.String(), Fragment: fragBuf.String()}, scanner.Err()
+	return ShaderSource{Vertex: vertexBuf.String(),
+		Fragment: fragBuf.String(), Compute: computeBuf.String()}, scanner.Err()
 }
 
 // CompileBasic compiles two OpenGL vertex and fragment shaders
 // and returns a program with the current OpenGL context.
 // It returns an error if compilation, linking or validation fails.
-func compileBasic(vertexSrcCode, fragmentSrcCode string) (program uint32, err error) {
-	if !strings.HasSuffix(vertexSrcCode, "\x00") {
-		return 0, errors.New("vertex shader source has no null terminator")
-	}
-	if !strings.HasSuffix(fragmentSrcCode, "\x00") {
-		return 0, errors.New("fragment shader source has no null terminator")
-	}
+func compileSources(ss ShaderSource) (program uint32, err error) {
 	program = gl.CreateProgram()
-	vid, err := compile(gl.VERTEX_SHADER, vertexSrcCode)
-	if err != nil {
-		return 0, fmt.Errorf("vertex shader compile: %w", err)
+	if len(ss.Vertex) > 0 {
+		vid, err := compile(gl.VERTEX_SHADER, ss.Vertex)
+		if err != nil {
+			return 0, fmt.Errorf("vertex shader compile: %w", err)
+		}
+		gl.AttachShader(program, vid)
+		// We can clean up.
+		defer gl.DeleteShader(vid)
+
 	}
-	fid, err := compile(gl.FRAGMENT_SHADER, fragmentSrcCode)
-	if err != nil {
-		return 0, fmt.Errorf("fragment shader compile: %w", err)
+	if len(ss.Fragment) > 0 {
+		fid, err := compile(gl.FRAGMENT_SHADER, ss.Fragment)
+		if err != nil {
+			return 0, fmt.Errorf("fragment shader compile: %w", err)
+		}
+		gl.AttachShader(program, fid)
+		defer gl.DeleteShader(fid)
 	}
-	gl.AttachShader(program, vid)
-	gl.AttachShader(program, fid)
+	if len(ss.Compute) > 0 {
+		cid, err := compile(gl.COMPUTE_SHADER, ss.Compute)
+		if err != nil {
+			return 0, fmt.Errorf("compute shader compile: %w", err)
+		}
+		gl.AttachShader(program, cid)
+		defer gl.DeleteShader(cid)
+	}
+
 	gl.LinkProgram(program)
 	log := ivLog(program, gl.LINK_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
 	if len(log) > 0 {
@@ -101,13 +121,13 @@ func compileBasic(vertexSrcCode, fragmentSrcCode string) (program uint32, err er
 		return 0, fmt.Errorf("validation failed: %v", log)
 	}
 
-	// We can clean up.
-	gl.DeleteShader(vid)
-	gl.DeleteShader(fid)
 	return program, nil
 }
 
 func compile(shaderType uint32, sourceCode string) (uint32, error) {
+	if !strings.HasSuffix(sourceCode, "\x00") {
+		return 0, errors.New("source missing null terminator")
+	}
 	id := gl.CreateShader(shaderType)
 	csources, free := gl.Strs(sourceCode)
 	gl.ShaderSource(id, 1, csources, nil)
@@ -135,6 +155,9 @@ func ivLog(id, plName uint32, getIV func(program uint32, pname uint32, params *i
 	if iv == gl.FALSE {
 		var logLength int32
 		getIV(id, gl.INFO_LOG_LENGTH, &logLength)
+		if logLength == 0 {
+			panic(fmt.Sprintf("unexpected false iv for plName=%v with no log", plName))
+		}
 		log := make([]byte, logLength)
 		getInfo(id, logLength, &logLength, &log[0])
 		return string(log[:len(log)-1]) // we exclude the last null character.
