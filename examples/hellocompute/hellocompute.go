@@ -1,3 +1,5 @@
+// This program adds a uniform value to
+// an array using a compute shader.
 package main
 
 import (
@@ -41,6 +43,10 @@ func main() {
 		return
 	}
 	prog.Bind()
+	err = prog.SetUniform1f("u_adder\x00", addThis)
+	if err != nil {
+		panic(err)
+	}
 	const unit = 0
 	cfg := glgl.TextureImgConfig{
 		Type:           glgl.Texture2D,
