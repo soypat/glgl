@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/slog"
 )
 
 // Version returns the running OpenGL version as a string.
@@ -28,6 +29,43 @@ const (
 var (
 	ErrStringNotNullTerminated = errors.New("string not null terminated")
 )
+
+// func CheckMemory() {
+// 	var buf [4]uint32
+
+// 	gl.GetIntegerv(gl.GPU_, &buf[0])
+
+// }
+
+// EnableDebugOutput writes debug output to log via glDebugMessageCallback.
+// If log is nil then the default slog package logger is used.
+func EnableDebugOutput(log *slog.Logger) {
+	if log == nil {
+		log = slog.Default()
+	}
+
+	gl.Enable(gl.DEBUG_OUTPUT)
+	gl.DebugMessageCallback(func(source, gltype, id, severity uint32, length int32, message string, userParam unsafe.Pointer) {
+		attrs := []slog.Attr{
+			slog.Uint64("source", uint64(source)),
+			slog.Uint64("gltype", uint64(gltype)),
+			slog.Uint64("severity", uint64(severity)),
+			slog.Uint64("length", uint64(length)),
+		}
+		var level slog.Level
+		switch gltype {
+		case gl.DEBUG_TYPE_ERROR:
+			level = slog.LevelError
+		case gl.DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+			level = slog.LevelWarn
+		case gl.DEBUG_TYPE_OTHER:
+			level = slog.LevelDebug
+		default:
+			level = slog.LevelInfo
+		}
+		log.LogAttrs(level, message, attrs...)
+	}, nil)
+}
 
 // VertexArray ties data layout with vertex buffer(s).
 // Is aware of data layout via VertexAttribPointer* calls.
@@ -253,8 +291,7 @@ func NewProgram(ss ShaderSource) (prog Program, err error) {
 }
 
 type Program struct {
-	rid     uint32
-	shaders []uint32
+	rid uint32
 }
 
 func (p Program) Bind() {
@@ -339,8 +376,20 @@ type Texture struct {
 	tp uint32
 }
 
-func (t Texture) Bind() {
-	gl.ActiveTexture(t.tp)
+func MaxTextureSlots() (textureUnits int) {
+	var tu int32
+	gl.GetIntegerv(gl.MAX_TEXTURE_IMAGE_UNITS, &tu)
+	return int(tu)
+}
+func MaxTextureBinded() (textureBounds int) {
+	var tu int32
+	gl.GetIntegerv(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS, &tu)
+	return int(tu)
+}
+
+// Bind receives a slot onto which to bind from 0 to 32.
+func (t Texture) Bind(activeSlot int) {
+	gl.ActiveTexture(gl.TEXTURE0 + uint32(activeSlot))
 	gl.BindTexture(t.target, t.rid)
 }
 
@@ -355,10 +404,11 @@ func (t Texture) Bind() {
 //		}
 //	}
 func (t Texture) Delete() {
-	gl.BindTexture(t.target, 0)
-	if err := Err(); err != nil {
-		panic(err)
-	}
+	// gl.BindTexture(t.target, 0)
+	// if err := Err(); err != nil {
+	// 	panic(err)
+	// }
+
 	gl.DeleteTextures(1, &t.rid)
 	if err := Err(); err != nil {
 		panic(err)
@@ -408,7 +458,7 @@ type TextureImgConfig struct {
 	Layer   int32
 	// Specifies the level-of-detail number. Level 0 is the base image level. If target is GL_TEXTURE_RECTANGLE or GL_PROXY_TEXTURE_RECTANGLE, level must be 0.
 	Level int32
-	// Specifies the index of the image unit to which to bind the texture.
+	// Specifies the index or "slot" of the image unit to which to bind the texture.
 	Unit uint32
 }
 
@@ -456,15 +506,16 @@ func NewTextureFromImage[T any](cfg TextureImgConfig, data []T) (Texture, error)
 	tactive := uint32(gl.TEXTURE0)
 	target := uint32(cfg.Type)
 	gl.GenTextures(1, &outTexture)
+	// TODO(soypat): isnt tactive same as cfg.Unit?
 	gl.ActiveTexture(tactive)
 	gl.BindTexture(target, outTexture)
-	// https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
+
+	// Us e default values since OpenGL does not do sane defaults: https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
 	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, zdefault(cfg.MagFilter, gl.NEAREST))
 	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, zdefault(cfg.MinFilter, gl.NEAREST))
-	if cfg.Wrap != 0 {
-		gl.TexParameteri(target, gl.TEXTURE_WRAP_S, cfg.Wrap)
-		gl.TexParameteri(target, gl.TEXTURE_WRAP_T, cfg.Wrap)
-	}
+	gl.TexParameteri(target, gl.TEXTURE_WRAP_S, zdefault(cfg.Wrap, gl.REPEAT))
+	gl.TexParameteri(target, gl.TEXTURE_WRAP_T, zdefault(cfg.Wrap, gl.REPEAT))
+
 	internalFormat := zdefault(cfg.InternalFormat, int32(cfg.Format))
 	gl.TexImage2D(target, cfg.Level, internalFormat, int32(cfg.Width), int32(cfg.Height),
 		cfg.Border, cfg.Format, cfg.Xtype, ptr)

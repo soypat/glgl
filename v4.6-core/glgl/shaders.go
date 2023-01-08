@@ -26,6 +26,8 @@ import (
 //	    gl_Frag = gl_Position/2;
 //	}
 //
+// ParseCombined performs no calls to the GL.
+//
 // [The Cherno]: https://www.youtube.com/watch?v=2pv0Fbo-7ms&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=9&t=724s&ab_channel=TheCherno
 func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 	const (

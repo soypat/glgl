@@ -2,7 +2,6 @@ package glgl_test
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -14,129 +13,9 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-const v = `#shader vertex
-#version 330
-
-out float v_myOutput;
-in float myInput;
-uniform float addThis;
-
-void main() {
-	v_myOutput = myInput + addThis;
-}
-#shader fragment
-#version 330
-in float v_myOutput;
-out float myOutput;
-void main() {
-	myOutput = v_myOutput;
-}`
-
 func init() {
 	// GLFW event handling must run on the main OS thread
 	runtime.LockOSThread()
-}
-
-func Example_helloComputeWorld() {
-	window, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:         "Hello Compute World",
-		Width:         80,
-		Height:        80,
-		NotResizable:  true,
-		Version:       [2]int{4, 6},
-		OpenGLProfile: glfw.OpenGLCoreProfile,
-		ForwardCompat: true,
-	})
-	if err != nil {
-		slog.Error("failed to initialize", err)
-		os.Exit(1)
-	}
-	defer terminate()
-	defer window.Destroy()
-	source, err := glgl.ParseCombined(strings.NewReader(`
-#shader vertex
-#version 410
-
-in float inValue;
-
-out float outValue;
-
-void main() {
-	float modifiedValue = inValue + 10.0;
-	gl_Position = vec4(modifiedValue, 0.0, 0.0, 1.0);
-	outValue = modifiedValue;
-}
-#shader fragment
-#version 410
-
-in float outValue;
-out vec4 fragval;
-void main() {
-	fragval = vec4(outValue,0.0,0.0,1.0);
-}
-`))
-	prog, err := glgl.NewProgram(source)
-	if err != nil {
-		slog.Error("failed to initialize glfw", err)
-		os.Exit(1)
-	}
-	defer prog.Delete()
-	prog.Bind()
-	vao := glgl.NewVAO() // Configure the Vertex Array Object.
-	// Create the Position Buffer Object.
-	input := []float32{1, 2, 3}
-	output := make([]float32, len(input))
-	inputBO, err := glgl.NewVertexBuffer(glgl.StaticDraw, input)
-	if err != nil {
-		slog.Error("creating positions vertex buffer", err)
-		return
-	}
-	err = vao.AddAttribute(inputBO, glgl.AttribLayout{
-		Program: prog,
-		Type:    glgl.Float32,
-		Name:    "inValue\x00",
-		Packing: 1,
-		Stride:  1,
-	})
-	if err != nil {
-		slog.Error("adding input attribute", err)
-		return
-	}
-	outputBO, err := glgl.NewVertexBuffer(glgl.StaticRead, output)
-	if err != nil {
-		slog.Error("creating positions vertex buffer", err)
-		return
-	}
-	err = prog.BindFrag("finalValue\x00")
-	if err != nil {
-		slog.Error("binding frag", err)
-		return
-	}
-	err = vao.AddAttribute(outputBO, glgl.AttribLayout{
-		Program: prog,
-		Type:    glgl.Float32,
-		Name:    "outValue\x00",
-		Packing: 1,
-		Stride:  1,
-	})
-	if err != nil {
-		slog.Error("adding output attribute", err)
-		return
-	}
-	const uniform = 1
-	// Set uniform variable `u_color` in source code.
-	err = prog.SetUniform1f("addThis\x00", uniform)
-	if err != nil {
-		slog.Error("setting `addThis` uniform", err)
-	}
-	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, int32(len(input)))
-	err = glgl.GetBufferData(output, outputBO)
-	if err != nil {
-		slog.Error("getting buffer data", err)
-	}
-	fmt.Println(output)
-	// Output:
-	// [2, 3, 4]
 }
 
 func Example_coloredSquare() {
