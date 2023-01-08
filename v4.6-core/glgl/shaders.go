@@ -104,7 +104,16 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 // and returns a program with the current OpenGL context.
 // It returns an error if compilation, linking or validation fails.
 func compileSources(ss ShaderSource) (program uint32, err error) {
+	// Note: glDeleteShader only flags a shader for deletion.
+	// They are not deleted until they are detached from the program.
+	// Beware: multiple calls to glDeleteShader on the same shader will cause an error on GL's side.
 	program = gl.CreateProgram()
+	if program == 0 {
+		if err := Err(); err != nil {
+			return 0, fmt.Errorf("got invalid program id: %w", err)
+		}
+		return 0, fmt.Errorf("silently got invalid program ID")
+	}
 	if len(ss.Vertex) > 0 {
 		vid, err := compile(gl.VERTEX_SHADER, ss.Vertex)
 		if err != nil {
@@ -147,6 +156,9 @@ func compileSources(ss ShaderSource) (program uint32, err error) {
 }
 
 func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
+	if err := Err(); err != nil {
+		return 0, fmt.Errorf("unhandled error before compiling: %w", err)
+	}
 	var sourceLengths []int32
 	for i := range sourceCodes {
 		if !strings.HasSuffix(sourceCodes[i], "\x00") {
@@ -156,17 +168,32 @@ func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
 	}
 
 	id := gl.CreateShader(shaderType)
+	if id == 0 {
+		if err := Err(); err != nil {
+			return 0, fmt.Errorf("got invalid shader ID: %w", err)
+		}
+		return 0, fmt.Errorf("silently got invalid shader id 0")
+	}
+	fmt.Println("id start", id)
 	csources, free := gl.Strs(sourceCodes...)
 	gl.ShaderSource(id, int32(len(sourceCodes)), csources, &sourceLengths[0])
 	free()
-	gl.CompileShader(id)
 
+	gl.CompileShader(id)
+	if err := Err(); err != nil {
+		return 0, fmt.Errorf("error after compiling shader: %w", err)
+	}
 	// We now check the errors during compile, if there were any.
+	fmt.Println("id before log", id)
 	log := ivLog(id, gl.COMPILE_STATUS, gl.GetShaderiv, gl.GetShaderInfoLog)
+	fmt.Println("id after log", id)
 	if len(log) > 0 {
 		return 0, errors.New(log)
 	}
-	return id, nil
+	// if !gl.IsShader(id) {
+	// 	return 0, errors.New("shader ID unexpectedly does not correspond to shader")
+	// }
+	return id, Err()
 }
 
 // ivLog is a helper function for extracting log data
@@ -183,7 +210,9 @@ func ivLog(id, plName uint32, getIV func(program uint32, pname uint32, params *i
 		var logLength int32
 		getIV(id, gl.INFO_LOG_LENGTH, &logLength)
 		if logLength == 0 {
-			panic(fmt.Sprintf("unexpected false iv for plName=%v with no log", plName))
+			// panic(fmt.Sprintf("unexpected false iv for plName=0x%#X with no log", plName))
+			fmt.Print("TODO: fix ivLog in shaders.go")
+			return ""
 		}
 		log := make([]byte, logLength)
 		getInfo(id, logLength, &logLength, &log[0])

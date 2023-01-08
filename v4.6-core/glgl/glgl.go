@@ -253,7 +253,8 @@ func NewProgram(ss ShaderSource) (prog Program, err error) {
 }
 
 type Program struct {
-	rid uint32
+	rid     uint32
+	shaders []uint32
 }
 
 func (p Program) Bind() {
@@ -283,7 +284,23 @@ func (p Program) BindFrag(name string) error {
 func (p Program) Unbind() {
 	gl.UseProgram(0)
 }
-func (p Program) Delete() { gl.DeleteProgram(p.rid) }
+
+// Make sure program is binded before deletion.
+func (p Program) Delete() {
+	const maxShadersReturned = 64
+	var count int32
+	shaders := make([]uint32, maxShadersReturned)
+	for {
+		gl.GetAttachedShaders(p.rid, maxShadersReturned, &count, &shaders[0])
+		if count <= 0 {
+			break
+		}
+		for _, shader := range shaders[:count] {
+			gl.DetachShader(p.rid, shader)
+		}
+	}
+	gl.DeleteProgram(p.rid)
+}
 
 func (p Program) uniformLocation(name string) (int32, error) {
 	if !strings.HasSuffix(name, "\x00") {
@@ -327,9 +344,25 @@ func (t Texture) Bind() {
 	gl.BindTexture(t.target, t.rid)
 }
 
-func (t Texture) Unbind() {
-	gl.ActiveTexture(0)
+//	func (t Texture) Unbind() {
+//		if err := Err(); err != nil {
+//			panic(err)
+//		}
+//		gl.ActiveTexture(0)
+//		gl.BindTexture(t.target, 0)
+//		if err := Err(); err != nil {
+//			panic(err)
+//		}
+//	}
+func (t Texture) Delete() {
 	gl.BindTexture(t.target, 0)
+	if err := Err(); err != nil {
+		panic(err)
+	}
+	gl.DeleteTextures(1, &t.rid)
+	if err := Err(); err != nil {
+		panic(err)
+	}
 }
 
 type TextureType uint32
