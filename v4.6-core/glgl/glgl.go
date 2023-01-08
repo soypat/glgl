@@ -58,14 +58,21 @@ func EnableDebugOutput(log *slog.Logger) {
 			level = slog.LevelError
 		case gl.DEBUG_TYPE_UNDEFINED_BEHAVIOR:
 			level = slog.LevelWarn
-		case gl.DEBUG_TYPE_OTHER:
-			level = slog.LevelDebug
+		// case gl.DEBUG_TYPE_OTHER:
+		// 	level = slog.LevelDebug
 		default:
 			level = slog.LevelInfo
 		}
 		log.LogAttrs(level, message, attrs...)
 	}, nil)
 }
+
+// func debug() {
+// 	const bufsize = 32 * 1024
+// 	var buf [bufsize]byte
+// 	gl.SOURCE
+// 	gl.GetDebugMessageLog(1024, bufsize)
+// }
 
 // VertexArray ties data layout with vertex buffer(s).
 // Is aware of data layout via VertexAttribPointer* calls.
@@ -267,113 +274,12 @@ func (vbo IndexBuffer) Delete() {
 	gl.DeleteBuffers(1, &vbo.rid)
 }
 
-// Vertex and Fragment are null terminated strings with source code.
-type ShaderSource struct {
-	// Vertex and Fragment are null terminated strings with source code.
-	Vertex   string
-	Fragment string
-	Compute  string
-	Include  string
-}
-
-func NewProgram(ss ShaderSource) (prog Program, err error) {
-	if ss.Compute != "" && (ss.Fragment != "" || ss.Vertex != "") {
-		return Program{}, errors.New("cannot compile compute and frag/vertex together")
-	}
-	if ss.Compute == "" && ss.Fragment == "" && ss.Vertex == "" {
-		if ss.Include != "" {
-			return Program{}, errors.New("only found `#shader include` part of program")
-		}
-		return Program{}, errors.New("empty program")
-	}
-	prog.rid, err = compileSources(ss)
-	return prog, err
-}
-
-type Program struct {
-	rid uint32
-}
-
-func (p Program) Bind() {
-	gl.UseProgram(p.rid)
-}
-
-// RunCompute runs a the program's compute shader with defined work sizes and waits for it to finish.
-func (p Program) RunCompute(workSizeX, workSizeY, workSizeZ int) error {
-	gl.DispatchCompute(uint32(workSizeX), uint32(workSizeY), uint32(workSizeZ))
-	err := Err()
-	if err != nil {
-		return err
-	}
-	// Wait for compute to finish.
-	gl.MemoryBarrier(gl.ALL_BARRIER_BITS)
-	return Err()
-}
-
-func (p Program) BindFrag(name string) error {
-	if !strings.HasSuffix(name, "\x00") {
-		return ErrStringNotNullTerminated
-	}
-	gl.BindFragDataLocation(p.rid, 0, gl.Str(name))
-	return nil
-}
-
-func (p Program) Unbind() {
-	gl.UseProgram(0)
-}
-
-// Make sure program is binded before deletion.
-func (p Program) Delete() {
-	const maxShadersReturned = 64
-	var count int32
-	shaders := make([]uint32, maxShadersReturned)
-	for {
-		gl.GetAttachedShaders(p.rid, maxShadersReturned, &count, &shaders[0])
-		if count <= 0 {
-			break
-		}
-		for _, shader := range shaders[:count] {
-			gl.DetachShader(p.rid, shader)
-		}
-	}
-	gl.DeleteProgram(p.rid)
-}
-
-func (p Program) uniformLocation(name string) (int32, error) {
-	if !strings.HasSuffix(name, "\x00") {
-		return -2, ErrStringNotNullTerminated
-	}
-	loc := gl.GetUniformLocation(p.rid, gl.Str(name))
-	if loc < 0 {
-		return loc, errors.New("unable to find uniform in program- did you use the identifier so it was not stripped from program?")
-	}
-	return loc, nil
-}
-
-func (p Program) SetUniformName4f(name string, v0, v1, v2, v3 float32) error {
-	loc, err := p.uniformLocation(name)
-	if err != nil {
-		return err
-	}
-	gl.Uniform4f(loc, v0, v1, v2, v3)
-	return nil
-}
-
-func (p Program) SetUniform1f(name string, v float32) error {
-	loc, err := p.uniformLocation(name)
-	if err != nil {
-		return err
-	}
-	gl.Uniform1f(loc, v)
-	return nil
-}
-
 type Texture struct {
 	rid uint32
 	// Usually GL_TEXTURE_2D.
 	target uint32
 	// Usually TEXTURE0.
-	tp uint32
+	unit uint32
 }
 
 func MaxTextureSlots() (textureUnits int) {
@@ -408,7 +314,6 @@ func (t Texture) Delete() {
 	// if err := Err(); err != nil {
 	// 	panic(err)
 	// }
-
 	gl.DeleteTextures(1, &t.rid)
 	if err := Err(); err != nil {
 		panic(err)
@@ -458,8 +363,13 @@ type TextureImgConfig struct {
 	Layer   int32
 	// Specifies the level-of-detail number. Level 0 is the base image level. If target is GL_TEXTURE_RECTANGLE or GL_PROXY_TEXTURE_RECTANGLE, level must be 0.
 	Level int32
-	// Specifies the index or "slot" of the image unit to which to bind the texture.
-	Unit uint32
+	// Specifies the unit on which to bind the image onto the texture.
+	//
+	ImageUnit uint32
+
+	// TextureUnit is the texture unit onto which the texture is loaded (glActiveTexture).
+	// TextureUnit starts at 0 and goes all the way up to MaxTextureSlots().
+	TextureUnit int
 }
 
 func (cfg TextureImgConfig) PixelSize() int {
@@ -503,28 +413,29 @@ func NewTextureFromImage[T any](cfg TextureImgConfig, data []T) (Texture, error)
 		}
 		ptr = unsafe.Pointer(&data[0])
 	}
-	tactive := uint32(gl.TEXTURE0)
-	target := uint32(cfg.Type)
 	gl.GenTextures(1, &outTexture)
-	// TODO(soypat): isnt tactive same as cfg.Unit?
-	gl.ActiveTexture(tactive)
-	gl.BindTexture(target, outTexture)
-
-	// Us e default values since OpenGL does not do sane defaults: https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
-	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, zdefault(cfg.MagFilter, gl.NEAREST))
-	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, zdefault(cfg.MinFilter, gl.NEAREST))
-	gl.TexParameteri(target, gl.TEXTURE_WRAP_S, zdefault(cfg.Wrap, gl.REPEAT))
-	gl.TexParameteri(target, gl.TEXTURE_WRAP_T, zdefault(cfg.Wrap, gl.REPEAT))
+	tex := Texture{
+		rid:    outTexture,
+		target: uint32(cfg.Type),
+		unit:   uint32(gl.TEXTURE0 + cfg.TextureUnit),
+	}
+	tex.Bind(cfg.TextureUnit)
 
 	internalFormat := zdefault(cfg.InternalFormat, int32(cfg.Format))
-	gl.TexImage2D(target, cfg.Level, internalFormat, int32(cfg.Width), int32(cfg.Height),
+	gl.TexImage2D(tex.target, cfg.Level, internalFormat, int32(cfg.Width), int32(cfg.Height),
 		cfg.Border, cfg.Format, cfg.Xtype, ptr)
+	// Use default values since OpenGL does not do sane defaults: https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
+	gl.TexParameteri(tex.target, gl.TEXTURE_MAG_FILTER, zdefault(cfg.MagFilter, gl.NEAREST))
+	gl.TexParameteri(tex.target, gl.TEXTURE_MIN_FILTER, zdefault(cfg.MinFilter, gl.NEAREST))
+	gl.TexParameteri(tex.target, gl.TEXTURE_WRAP_S, zdefault(cfg.Wrap, gl.REPEAT))
+	gl.TexParameteri(tex.target, gl.TEXTURE_WRAP_T, zdefault(cfg.Wrap, gl.REPEAT))
+
 	// For following call: format specifies the format that is to be used when performing
 	// formatted stores into the image from shaders. format must be compatible with the
 	// texture's internal format and must be one of the formats listed in the following table.
-	gl.BindImageTexture(cfg.Unit, outTexture, cfg.Level, cfg.Layered, cfg.Layer,
+	gl.BindImageTexture(cfg.ImageUnit, outTexture, cfg.Level, cfg.Layered, cfg.Layer,
 		uint32(cfg.Access), uint32(internalFormat))
-	return Texture{rid: outTexture, tp: tactive, target: target}, Err()
+	return tex, Err()
 }
 
 // SetImage2D sets an existing texture's values on the GPU.
@@ -534,7 +445,8 @@ func SetImage2D[T any](tex Texture, cfg TextureImgConfig, data []T) error {
 		ptr = unsafe.Pointer(&data[0])
 	}
 	internalFormat := zdefault(cfg.InternalFormat, int32(cfg.Format))
-	gl.TexImage2D(tex.tp, cfg.Level, internalFormat,
+	gl.TextureBarrier()
+	gl.TexImage2D(tex.unit, cfg.Level, internalFormat,
 		int32(cfg.Width), int32(cfg.Height), cfg.Border, cfg.Format, cfg.Xtype, ptr)
 	return Err()
 }
@@ -546,6 +458,7 @@ func GetImage[T any](dst []T, tex Texture, cfg TextureImgConfig) error {
 	if err := assertImgSameSize(cfg, dst); err != nil {
 		return err
 	}
+	gl.TextureBarrier()
 	gl.GetTexImage(tex.target, cfg.Level, cfg.Format, cfg.Xtype, unsafe.Pointer(&dst[0]))
 	return Err()
 }

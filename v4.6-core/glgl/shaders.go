@@ -11,6 +11,95 @@ import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 )
 
+// Vertex and Fragment are null terminated strings with source code.
+type ShaderSource struct {
+	// Vertex and Fragment are null terminated strings with source code.
+	Vertex   string
+	Fragment string
+	Compute  string
+	Include  string
+}
+
+type Program struct {
+	rid uint32
+}
+
+func NewProgram(ss ShaderSource) (prog Program, err error) {
+	if ss.Compute != "" && (ss.Fragment != "" || ss.Vertex != "") {
+		return Program{}, errors.New("cannot compile compute and frag/vertex together")
+	}
+	if ss.Compute == "" && ss.Fragment == "" && ss.Vertex == "" {
+		if ss.Include != "" {
+			return Program{}, errors.New("only found `#shader include` part of program")
+		}
+		return Program{}, errors.New("empty program")
+	}
+	prog, err = compileSources(ss)
+	return prog, err
+}
+
+// RunCompute runs a the program's compute shader with defined work sizes and waits for it to finish.
+func (p Program) RunCompute(workSizeX, workSizeY, workSizeZ int) error {
+	gl.DispatchCompute(uint32(workSizeX), uint32(workSizeY), uint32(workSizeZ))
+	err := Err()
+	if err != nil {
+		return err
+	}
+	// Wait for compute to finish.
+	gl.MemoryBarrier(gl.ALL_BARRIER_BITS)
+	return Err()
+}
+
+func (p Program) BindFrag(name string) error {
+	if !strings.HasSuffix(name, "\x00") {
+		return ErrStringNotNullTerminated
+	}
+	gl.BindFragDataLocation(p.rid, 0, gl.Str(name))
+	return nil
+}
+
+func (p Program) Bind()   { gl.UseProgram(p.rid) }
+func (p Program) Unbind() { gl.UseProgram(0) }
+
+// Delete deletes p. Make sure program is binded before deletion.
+func (p Program) Delete() {
+	if p.rid == 0 {
+		// A program ID of zero will be silently ignored by the GL.
+		panic("got program id of zero. Did you correctly create the program?")
+	}
+	p.Unbind()
+	gl.DeleteProgram(p.rid)
+}
+
+func (p Program) uniformLocation(name string) (int32, error) {
+	if !strings.HasSuffix(name, "\x00") {
+		return -2, ErrStringNotNullTerminated
+	}
+	loc := gl.GetUniformLocation(p.rid, gl.Str(name))
+	if loc < 0 {
+		return loc, errors.New("unable to find uniform in program- did you use the identifier so it was not stripped from program?")
+	}
+	return loc, nil
+}
+
+func (p Program) SetUniformName4f(name string, v0, v1, v2, v3 float32) error {
+	loc, err := p.uniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.Uniform4f(loc, v0, v1, v2, v3)
+	return nil
+}
+
+func (p Program) SetUniform1f(name string, v float32) error {
+	loc, err := p.uniformLocation(name)
+	if err != nil {
+		return err
+	}
+	gl.Uniform1f(loc, v)
+	return nil
+}
+
 // ParseCombinedBasic parses a file with vertex and fragment #shader pragmas inspired
 // by [The Cherno]'s take on shader file segmenting. This method of writing
 // shaders lets one keep vertex and fragment shader source code in the same file:
@@ -26,6 +115,7 @@ import (
 //	    gl_Frag = gl_Position/2;
 //	}
 //
+// `compute` and `includeashead` are also valid #shader pragmas.
 // ParseCombined performs no calls to the GL.
 //
 // [The Cherno]: https://www.youtube.com/watch?v=2pv0Fbo-7ms&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=9&t=724s&ab_channel=TheCherno
@@ -105,56 +195,71 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 // CompileBasic compiles two OpenGL vertex and fragment shaders
 // and returns a program with the current OpenGL context.
 // It returns an error if compilation, linking or validation fails.
-func compileSources(ss ShaderSource) (program uint32, err error) {
+func compileSources(ss ShaderSource) (program Program, err error) {
+	if err := Err(); err != nil {
+		return Program{}, fmt.Errorf("unhandled error before compiling: %w", err)
+	}
 	// Note: glDeleteShader only flags a shader for deletion.
 	// They are not deleted until they are detached from the program.
 	// Beware: multiple calls to glDeleteShader on the same shader will cause an error on GL's side.
-	program = gl.CreateProgram()
-	if program == 0 {
-		if err := Err(); err != nil {
-			return 0, fmt.Errorf("got invalid program id: %w", err)
-		}
-		return 0, fmt.Errorf("silently got invalid program ID")
+	program.rid = gl.CreateProgram()
+	if program.rid == 0 {
+		return Program{}, fmt.Errorf("silently got invalid program ID")
 	}
+
+	// Some inspiration taken from github.com/TheCherno/Hazel/src/Platform/OpenGL/OpenGLShader.cpp
+	// Hazel detaches and deletes shaders immediately after creating program.
+	// Apparently no need to persist them after the fact.
+	var shaders []uint32
+	var linked bool
+	defer func() {
+		for _, sid := range shaders {
+			if linked {
+				gl.DetachShader(program.rid, sid)
+			}
+			gl.DeleteShader(sid)
+		}
+	}()
+
 	if len(ss.Vertex) > 0 {
 		vid, err := compile(gl.VERTEX_SHADER, ss.Vertex)
 		if err != nil {
-			return 0, fmt.Errorf("vertex shader compile: %w", err)
+			return Program{}, fmt.Errorf("vertex shader compile: %w", err)
 		}
-		gl.AttachShader(program, vid)
-		// We can clean up.
-		defer gl.DeleteShader(vid)
+		gl.AttachShader(program.rid, vid)
+		shaders = append(shaders, vid) // for cleanup
 	}
 	if len(ss.Fragment) > 0 {
 		fid, err := compile(gl.FRAGMENT_SHADER, ss.Fragment)
 		if err != nil {
-			return 0, fmt.Errorf("fragment shader compile: %w", err)
+			return Program{}, fmt.Errorf("fragment shader compile: %w", err)
 		}
-		gl.AttachShader(program, fid)
-		defer gl.DeleteShader(fid)
+		gl.AttachShader(program.rid, fid)
+		shaders = append(shaders, fid) // for cleanup
 	}
 	if len(ss.Compute) > 0 {
 		cid, err := compile(gl.COMPUTE_SHADER, ss.Compute)
 		if err != nil {
-			return 0, fmt.Errorf("compute shader compile: %w", err)
+			return Program{}, fmt.Errorf("compute shader compile: %w", err)
 		}
-		gl.AttachShader(program, cid)
-		defer gl.DeleteShader(cid)
+		gl.AttachShader(program.rid, cid)
+		shaders = append(shaders, cid) // for cleanup
 	}
 
-	gl.LinkProgram(program)
-	log := ivLog(program, gl.LINK_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
+	gl.LinkProgram(program.rid)
+	log := ivLog(program.rid, gl.LINK_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
 	if len(log) > 0 {
-		return 0, fmt.Errorf("link failed: %v", log)
+		return Program{}, fmt.Errorf("link failed: %v", log)
 	}
+	linked = true
 	// We should technically call DetachShader after linking... https://www.youtube.com/watch?v=71BLZwRGUJE&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=7&ab_channel=TheCherno
-	gl.ValidateProgram(program)
-	log = ivLog(program, gl.VALIDATE_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
+	gl.ValidateProgram(program.rid)
+	log = ivLog(program.rid, gl.VALIDATE_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
 	if len(log) > 0 {
-		return 0, fmt.Errorf("validation failed: %v", log)
+		return Program{}, fmt.Errorf("validation failed: %v", log)
 	}
 
-	return program, nil
+	return program, Err()
 }
 
 func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
@@ -176,7 +281,6 @@ func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
 		}
 		return 0, fmt.Errorf("silently got invalid shader id 0")
 	}
-	fmt.Println("id start", id)
 	csources, free := gl.Strs(sourceCodes...)
 	gl.ShaderSource(id, int32(len(sourceCodes)), csources, &sourceLengths[0])
 	free()
@@ -186,9 +290,7 @@ func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
 		return 0, fmt.Errorf("error after compiling shader: %w", err)
 	}
 	// We now check the errors during compile, if there were any.
-	fmt.Println("id before log", id)
 	log := ivLog(id, gl.COMPILE_STATUS, gl.GetShaderiv, gl.GetShaderInfoLog)
-	fmt.Println("id after log", id)
 	if len(log) > 0 {
 		return 0, errors.New(log)
 	}

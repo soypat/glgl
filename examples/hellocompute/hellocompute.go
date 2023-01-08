@@ -61,7 +61,7 @@ func main() {
 		MagFilter:      gl.NEAREST,
 		Xtype:          gl.FLOAT,
 		InternalFormat: gl.R32F,
-		Unit:           unit,
+		TextureUnit:    unit,
 	}
 	dst := make([]float32, width*height)
 	tex, err := glgl.NewTextureFromImage(cfg, dst)

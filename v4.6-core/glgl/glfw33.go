@@ -1,8 +1,11 @@
 package glgl
 
 import (
+	"errors"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"golang.org/x/exp/slog"
 )
 
 type WindowConfig struct {
@@ -13,9 +16,13 @@ type WindowConfig struct {
 	OpenGLProfile int
 	ForwardCompat bool
 	Width, Height int
+	DebugLog      *slog.Logger
 }
 
 func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, func(), error) {
+	if cfg.DebugLog != nil {
+		return nil, nil, errors.New("DebugLog not supported in GLFW version 3.3")
+	}
 	if err := glfw.Init(); err != nil {
 		return nil, nil, err
 	}
