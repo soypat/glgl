@@ -39,7 +39,7 @@ func main() {
 		slog.Error("parsing", err)
 		return
 	}
-	prog, err := glgl.NewProgram(ss)
+	prog, err := glgl.CompileProgram(ss)
 	if err != nil {
 		slog.Error("creating program", err)
 		return

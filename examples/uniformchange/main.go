@@ -1,7 +1,9 @@
-package glgl_test
+package main
 
 import (
+	_ "embed"
 	"fmt"
+	_ "image/png"
 	"runtime"
 	"strings"
 	"time"
@@ -13,77 +15,61 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+// Very basic index buffer example.
+
 func init() {
 	// GLFW event handling must run on the main OS thread
 	runtime.LockOSThread()
 }
 
-func Example_coloredSquare() {
-	// Very basic index buffer example.
-	const shader = `
-#shader vertex
-#version 330
+//go:embed uniformtriangle.glsl
+var shader string
 
-in vec3 vert;
-
-void main() {
-	gl_Position = vec4(vert.xyz, 1.0);
+// Square with indices:
+// 3----2
+// |    |
+// 0----1
+var positions = []float32{
+	-0.5, -0.5, // 0
+	0.5, -0.5, // 1
+	0.5, 0.5, // 2
+	-0.5, 0.5, //3
 }
 
-#shader fragment
-#version 330
+// We'll solve this one using index buffers.
+var indices = []uint32{
+	0, 1, 2, // Lower right triangle.
+	0, 2, 3, // Upper left triangle.
+}
 
-out vec4 outputColor;
-
-uniform vec4 u_color;
-
-void main() {
-	outputColor = u_color;
-}`
-
-	// Square with indices:
-	// 3----2
-	// |    |
-	// 0----1
-	var positions = []float32{
-		-0.5, -0.5, // 0
-		0.5, -0.5, // 1
-		0.5, 0.5, // 2
-		-0.5, 0.5, //3
-	}
-	var indices = []uint32{
-		0, 1, 2, // Lower right triangle.
-		0, 2, 3, // Upper left triangle.
-	}
+func main() {
 	window, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:         "Index Buffers",
-		Width:         800,
-		Height:        800,
-		NotResizable:  true,
-		Version:       [2]int{4, 6},
-		OpenGLProfile: glfw.OpenGLCoreProfile,
-		ForwardCompat: true,
+		Title:  "Hello triangle",
+		Width:  800,
+		Height: 800,
 	})
+	if err != nil {
+		slog.Error("glfw or gl init failed", err)
+		return
+	}
 	defer terminate()
 	fmt.Println("OpenGL version", glgl.Version())
 
-	// Separate vertex and fragment shaders from source code.
+	// Parse and compile source code.
 	source, err := glgl.ParseCombined(strings.NewReader(shader))
 	if err != nil {
-		slog.Error("parse combined source fail", err)
+		slog.Error("parse program failed", err)
 		return
 	}
-
-	// Configure the vertex and fragment shaders
-	program, err := glgl.CompileProgram(source)
+	prog, err := glgl.CompileProgram(source)
 	if err != nil {
-		slog.Error("compile fail", err)
+		slog.Error("compile program failed", err)
 		return
 	}
-	defer program.Delete()
-	program.Bind()
+	prog.Bind()
+	defer prog.Delete()
 
-	err = program.BindFrag("outputColor\x00")
+	err = prog.BindFrag("outputColor\x00")
 	if err != nil {
 		slog.Error("program bind frag fail", err)
 		return
@@ -98,8 +84,8 @@ void main() {
 		return
 	}
 	err = vao.AddAttribute(vbo, glgl.AttribLayout{
-		Program: program,
-		Type:    gl.FLOAT,
+		Program: prog,
+		Type:    glgl.Float32,
 		Name:    "vert\x00",
 		Packing: 2,
 		Stride:  2 * 4, // 2 floats, each 4 bytes wide.
@@ -117,7 +103,7 @@ void main() {
 	}
 
 	// Set uniform variable `u_color` in source code.
-	err = program.SetUniformName4f("u_color\x00", 0.2, 0.3, 0.8, 1)
+	err = prog.SetUniformName4f("u_color\x00", 0.2, 0.3, 0.8, 1)
 	if err != nil {
 		slog.Error("creating index buffer", err)
 		return
@@ -127,7 +113,7 @@ void main() {
 
 		gl.DrawElements(gl.TRIANGLES, int32(len(indices)), gl.UNSIGNED_INT, unsafe.Pointer(nil))
 
-		program.SetUniformName4f("u_color\x00", float32(time.Now().UnixMilli()%1000)/1000, .5, .3, 1)
+		prog.SetUniformName4f("u_color\x00", float32(time.Now().UnixMilli()%1000)/1000, .5, .3, 1)
 		// Maintenance
 		glfw.SwapInterval(1) // Can prevent epilepsy for high frequency
 		window.SwapBuffers()
@@ -136,6 +122,4 @@ void main() {
 			window.SetShouldClose(true)
 		}
 	}
-	// Output:
-	// None.
 }

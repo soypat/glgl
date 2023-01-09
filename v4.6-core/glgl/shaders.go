@@ -24,7 +24,7 @@ type Program struct {
 	rid uint32
 }
 
-func NewProgram(ss ShaderSource) (prog Program, err error) {
+func CompileProgram(ss ShaderSource) (prog Program, err error) {
 	if ss.Compute != "" && (ss.Fragment != "" || ss.Vertex != "") {
 		return Program{}, errors.New("cannot compile compute and frag/vertex together")
 	}
