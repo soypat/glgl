@@ -6,6 +6,7 @@ package ms3
 
 import (
 	"math"
+	"unsafe"
 
 	"github.com/chewxy/math32"
 )
@@ -39,10 +40,22 @@ const (
 // A Quaternion has two parts: W, the so-called scalar component, and "V", the
 // vector component. The vector component is considered to be the part in 3D
 // space, while W (loosely interpreted) is its 4D coordinate.
+//
+// The imaginary V part is guaranteed to have an offset of zero in the Quat struct:
+//
+//	unsafe.Offsetof(q.V) // == 0
 type Quat struct {
-	W float32
 	// V contains I, J and K imaginary parts.
 	V Vec
+	W float32
+}
+
+func init() {
+	const voffset = unsafe.Offsetof(Quat{}.V)
+	// assert
+	if voffset != 0 {
+		panic("offset guaranteed to be zero")
+	}
 }
 
 // QuatIdent returns the quaternion identity: W=1; V=(0,0,0).
@@ -50,7 +63,7 @@ type Quat struct {
 // As with all identities, multiplying any quaternion by this will yield the same
 // quaternion you started with.
 func QuatIdent() Quat {
-	return Quat{1., Vec{0, 0, 0}}
+	return Quat{W: 1.}
 }
 
 // QuatRotate creates an angle from an axis and an angle relative to that axis.
@@ -59,19 +72,19 @@ func QuatIdent() Quat {
 func QuatRotate(angle float32, axis Vec) Quat {
 	// angle = (float32(math.Pi) * angle) / 180.0
 	s, c := math32.Sincos(0.5 * angle)
-	return Quat{c, Scale(s, axis)}
+	return Quat{W: c, V: Scale(s, axis)}
 }
 
 // Add adds two quaternions. It's no more complicated than
 // adding their W and V components.
 func (q1 Quat) Add(q2 Quat) Quat {
-	return Quat{q1.W + q2.W, Add(q1.V, q2.V)}
+	return Quat{W: q1.W + q2.W, V: Add(q1.V, q2.V)}
 }
 
 // Sub subtracts two quaternions. It's no more complicated than
 // subtracting their W and V components.
 func (q1 Quat) Sub(q2 Quat) Quat {
-	return Quat{q1.W - q2.W, Sub(q1.V, q2.V)}
+	return Quat{W: q1.W - q2.W, V: Sub(q1.V, q2.V)}
 }
 
 // Mul multiplies two quaternions. This can be seen as a rotation. Note that
@@ -79,18 +92,18 @@ func (q1 Quat) Sub(q2 Quat) Quat {
 // equal q2.Mul(q1).
 func (q1 Quat) Mul(q2 Quat) Quat {
 	m := Add(Cross(q1.V, q2.V), Scale(q1.W, q2.V))
-	return Quat{q1.W*q2.W - Dot(q1.V, q2.V), Add(m, Scale(q2.W, q1.V))}
+	return Quat{W: q1.W*q2.W - Dot(q1.V, q2.V), V: Add(m, Scale(q2.W, q1.V))}
 }
 
 // Scale every element of the quaternion by some constant factor.
 func (q1 Quat) Scale(c float32) Quat {
-	return Quat{q1.W * c, Vec{q1.V.X * c, q1.V.Y * c, q1.V.Z * c}}
+	return Quat{W: q1.W * c, V: Vec{q1.V.X * c, q1.V.Y * c, q1.V.Z * c}}
 }
 
 // Conjugate returns the conjugate of a quaternion. Equivalent to
 // Quat{q1.W, q1.V.Mul(-1)}.
 func (q1 Quat) Conjugate() Quat {
-	return Quat{q1.W, Scale(-1, q1.V)}
+	return Quat{W: q1.W, V: Scale(-1, q1.V)}
 }
 
 // Norm returns the euclidean length of the quaternion.
@@ -110,11 +123,11 @@ func (q1 Quat) Unit() Quat {
 	if length == 0 {
 		return QuatIdent()
 	}
-	// if length == InfPos {
-	// 	length = MaxValue
-	// }
+	if math32.IsInf(length, 0) {
+		length = math32.Copysign(math.MaxFloat32, length)
+	}
 	inv := 1. / length
-	return Quat{q1.W * inv, Scale(inv, q1.V)}
+	return Quat{W: q1.W * inv, V: Scale(inv, q1.V)}
 }
 
 // Inverse of a quaternion. The inverse is equivalent
@@ -357,8 +370,8 @@ func QuatBetweenVectors(start, dest Vec) Quat {
 	s := math32.Sqrt((1.0 + cosTheta) * 2.0)
 
 	return Quat{
-		s * 0.5,
-		Scale(1.0/s, axis),
+		W: s * 0.5,
+		V: Scale(1.0/s, axis),
 	}
 }
 
