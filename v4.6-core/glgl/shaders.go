@@ -204,7 +204,7 @@ func compileSources(ss ShaderSource) (program Program, err error) {
 	// Beware: multiple calls to glDeleteShader on the same shader will cause an error on GL's side.
 	program.rid = gl.CreateProgram()
 	if program.rid == 0 {
-		return Program{}, fmt.Errorf("silently got invalid program ID")
+		return Program{}, errors.New("silently got invalid program ID. Are you calling from the main thread? Remember to call runtime.LockOSThread() from your main thread")
 	}
 
 	// Some inspiration taken from github.com/TheCherno/Hazel/src/Platform/OpenGL/OpenGLShader.cpp
