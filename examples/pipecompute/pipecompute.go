@@ -8,6 +8,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
@@ -25,6 +26,11 @@ var (
 	//go:embed pipecompute.glsl
 	compute string
 )
+
+func init() {
+	// GLFW event handling must run on the main OS thread
+	runtime.LockOSThread()
+}
 
 func main() {
 	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{

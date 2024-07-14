@@ -5,6 +5,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
@@ -17,6 +18,11 @@ const (
 	height  = 20
 	addThis = 99
 )
+
+func init() {
+	// GLFW event handling must run on the main OS thread
+	runtime.LockOSThread()
+}
 
 //go:embed hellocompute.glsl
 var compute string
