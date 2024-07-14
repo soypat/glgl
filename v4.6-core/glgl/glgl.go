@@ -3,6 +3,8 @@ package glgl
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -284,13 +286,22 @@ type Texture struct {
 
 func MaxTextureSlots() (textureUnits int) {
 	var tu int32
-	gl.GetIntegerv(gl.MAX_TEXTURE_IMAGE_UNITS, &tu)
-	return int(tu)
+	ptr := &tu
+	var p runtime.Pinner
+	p.Pin(ptr)
+	defer p.Unpin()
+	gl.GetIntegerv(gl.MAX_TEXTURE_IMAGE_UNITS, ptr)
+	return int(*ptr)
 }
+
 func MaxTextureBinded() (textureBounds int) {
 	var tu int32
-	gl.GetIntegerv(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS, &tu)
-	return int(tu)
+	ptr := &tu
+	var p runtime.Pinner
+	p.Pin(ptr)
+	defer p.Unpin()
+	gl.GetIntegerv(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS, ptr)
+	return int(*ptr)
 }
 
 // Bind receives a slot onto which to bind from 0 to 32.
@@ -364,7 +375,7 @@ type TextureImgConfig struct {
 	// Specifies the level-of-detail number. Level 0 is the base image level. If target is GL_TEXTURE_RECTANGLE or GL_PROXY_TEXTURE_RECTANGLE, level must be 0.
 	Level int32
 	// Specifies the unit on which to bind the image onto the texture.
-	//
+	// This is the binding point for image2D uniforms.
 	ImageUnit uint32
 
 	// TextureUnit is the texture unit onto which the texture is loaded (glActiveTexture).
@@ -526,7 +537,7 @@ func (ge glError) String() (s string) {
 	case gl.INVALID_VALUE:
 		s = "invalid value"
 	default:
-		s = "unknown error enum"
+		s = "glError(" + strconv.Itoa(int(ge)) + ")"
 	}
 	return s
 }

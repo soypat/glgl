@@ -56,6 +56,7 @@ func main() {
 		slog.Error("setting uniform", err)
 		return
 	}
+
 	const unit = 0
 	cfg := glgl.TextureImgConfig{
 		Type:           glgl.Texture2D,
@@ -67,14 +68,19 @@ func main() {
 		MagFilter:      gl.NEAREST,
 		Xtype:          gl.FLOAT,
 		InternalFormat: gl.R32F,
-		TextureUnit:    unit,
+		ImageUnit:      unit,
 	}
+	// DST starts with ones, and we add the uniform variable too all values.
 	dst := make([]float32, width*height)
+	for i := range dst {
+		dst[i]++
+	}
 	tex, err := glgl.NewTextureFromImage(cfg, dst)
 	if err != nil {
 		slog.Error("creating texture", err)
 		return
 	}
+
 	// Dispatch and wait for compute to finish.
 	err = prog.RunCompute(width, height, 1)
 	if err != nil {

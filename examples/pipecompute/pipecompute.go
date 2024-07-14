@@ -76,7 +76,7 @@ func main() {
 		MagFilter:      gl.NEAREST,
 		Xtype:          gl.FLOAT,
 		InternalFormat: gl.R32F,
-		TextureUnit:    inputUnit,
+		ImageUnit:      inputUnit,
 	}
 	_, err = glgl.NewTextureFromImage(inputCfg, inputArray)
 	if err != nil {
@@ -89,13 +89,13 @@ func main() {
 		Type:           glgl.Texture2D,
 		Width:          len(outputArray),
 		Height:         1,
-		Access:         glgl.ReadOnly,
+		Access:         glgl.WriteOnly,
 		Format:         gl.RED,
 		MinFilter:      gl.NEAREST,
 		MagFilter:      gl.NEAREST,
 		Xtype:          gl.FLOAT,
 		InternalFormat: gl.R32F,
-		TextureUnit:    outputUnit,
+		ImageUnit:      outputUnit,
 	}
 	outputTex, err := glgl.NewTextureFromImage(outputCfg, outputArray)
 	if err != nil {
