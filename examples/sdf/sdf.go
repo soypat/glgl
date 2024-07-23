@@ -47,7 +47,7 @@ type SDFShader struct {
 
 func (s *Sphere) AppendShader(glsl *SDFShader) error {
 	r := float64(s.R)
-	glsl.Name = append(glsl.Name, "sphere_"...)
+	glsl.Name = append(glsl.Name, "sphere"...)
 	glsl.Name = strconv.AppendFloat(glsl.Name, r, 'f', fltPrec, 32)
 	if idx := bytes.IndexByte(glsl.Name, '.'); idx >= 0 {
 		// Identifiers cannot have period in name.
@@ -61,9 +61,8 @@ func (s *Sphere) AppendShader(glsl *SDFShader) error {
 
 func (s *Sphere) Evaluate(positions []Vec, distances []float32) (int, error) {
 	for i, pos := range positions {
-		r1 := math.Hypot(float64(pos.X), float64(pos.Y))
-		r2 := math.Hypot(r1, float64(pos.Z))
-		distances[i] = float32(r2) - s.R
+		r := norm(pos)
+		distances[i] = r - s.R
 	}
 	return 0, nil
 }
@@ -75,6 +74,7 @@ func (s *Sphere) Bounds() (min, max Vec) {
 }
 
 type SDFShaderer interface {
+	Bounds() (min, max Vec)
 	AppendShader(glsl *SDFShader) error
 }
 
@@ -84,8 +84,26 @@ type BinaryOpShader struct {
 	bodyFmt string
 }
 
+func Union(s1, s2 SDFShaderer) SDFShaderer {
+	if s1 == nil || s2 == nil {
+		panic("nil object")
+	}
+	return &UnionShader{
+		s1: s1,
+		s2: s2,
+	}
+}
+
 type UnionShader struct {
 	s1, s2 SDFShaderer
+}
+
+func (s *UnionShader) Bounds() (vmin, vmax Vec) {
+	min1, max1 := s.s1.Bounds()
+	min2, max2 := s.s2.Bounds()
+	vmin = Vec{X: minf(min1.X, min2.X), Y: minf(min1.Y, min2.Y), Z: minf(min1.Z, min2.Z)}
+	vmax = Vec{X: maxf(max1.X, max2.X), Y: maxf(max1.Y, max2.Y), Z: maxf(max1.Z, max2.Z)}
+	return vmin, vmax
 }
 
 func (s *UnionShader) AppendShader(glsl *SDFShader) error {
@@ -114,6 +132,58 @@ func NewSphere(radius float32) (SDFShaderer, error) {
 	return &Sphere{R: radius}, nil
 }
 
+type TranslateShader struct {
+	s SDFShaderer
+	p Vec
+}
+
+func (ts *TranslateShader) AppendShader(glsl *SDFShader) error {
+	glsl.Name = append(glsl.Name, "translate"...)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.X), 'f', fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Y), 'f', fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Z), 'f', fltPrec, 32)
+	for {
+		idx := bytes.IndexByte(glsl.Name, '.')
+		if idx < 0 {
+			break
+		}
+		glsl.Name[idx] = 'p'
+	}
+	glsl.Name = append(glsl.Name, '_')
+	idStart := len(glsl.Name)
+	body := glsl.Body
+	err := ts.s.AppendShader(glsl)
+	if err != nil {
+		return err
+	}
+	glsl.Body = glsl.Body[:len(body)]
+	glsl.Body = append(glsl.Body, "return "...)
+	glsl.Body = append(glsl.Body, glsl.Name[idStart:]...)
+	glsl.Body = append(glsl.Body, "(p - vec3("...)
+	glsl.Body = strconv.AppendFloat(glsl.Body, float64(ts.p.X), 'f', fltPrec, 32)
+	glsl.Body = append(glsl.Body, ',')
+	glsl.Body = strconv.AppendFloat(glsl.Body, float64(ts.p.Y), 'f', fltPrec, 32)
+	glsl.Body = append(glsl.Body, ',')
+	glsl.Body = strconv.AppendFloat(glsl.Body, float64(ts.p.Z), 'f', fltPrec, 32)
+	glsl.Body = append(glsl.Body, "));"...)
+	return nil
+}
+
 func main() {
 
+}
+
+func minf(a, b float32) float32 {
+	return float32(math.Min(float64(a), float64(b)))
+}
+
+func maxf(a, b float32) float32 {
+	return float32(math.Max(float64(a), float64(b)))
+}
+
+// norm is equivalent to glsl `length` call.
+func norm(pos Vec) float32 {
+	r1 := math.Hypot(float64(pos.X), float64(pos.Y))
+	r2 := math.Hypot(r1, float64(pos.Z))
+	return float32(r2)
 }
