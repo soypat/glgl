@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"math"
 	"runtime"
 	"strconv"
@@ -39,6 +40,7 @@ type Sphere struct {
 }
 
 const fltPrec = 8
+const fltFmtByte = 'g'
 
 type SDFShader struct {
 	Name []byte
@@ -48,7 +50,7 @@ type SDFShader struct {
 func (s *Sphere) AppendShader(glsl *SDFShader) error {
 	r := float64(s.R)
 	glsl.Name = append(glsl.Name, "sphere"...)
-	glsl.Name = strconv.AppendFloat(glsl.Name, r, 'f', fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, r, fltFmtByte, fltPrec, 32)
 	if idx := bytes.IndexByte(glsl.Name, '.'); idx >= 0 {
 		// Identifiers cannot have period in name.
 		glsl.Name[idx] = 'p'
@@ -132,16 +134,30 @@ func NewSphere(radius float32) (SDFShaderer, error) {
 	return &Sphere{R: radius}, nil
 }
 
+func Translate(s SDFShaderer, to Vec) SDFShaderer {
+	return &TranslateShader{
+		s: s,
+		p: to,
+	}
+}
+
 type TranslateShader struct {
 	s SDFShaderer
 	p Vec
 }
 
+func (ts *TranslateShader) Bounds() (min, max Vec) {
+	min, max = ts.s.Bounds()
+	min = Vec{X: min.X + ts.p.X, Y: min.Y + ts.p.Y, Z: min.X + ts.p.Z}
+	max = Vec{X: max.X + ts.p.X, Y: max.Y + ts.p.Y, Z: max.X + ts.p.Z}
+	return min, max
+}
+
 func (ts *TranslateShader) AppendShader(glsl *SDFShader) error {
 	glsl.Name = append(glsl.Name, "translate"...)
-	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.X), 'f', fltPrec, 32)
-	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Y), 'f', fltPrec, 32)
-	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Z), 'f', fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.X), fltFmtByte, fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Y), fltFmtByte, fltPrec, 32)
+	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.Z), fltFmtByte, fltPrec, 32)
 	for {
 		idx := bytes.IndexByte(glsl.Name, '.')
 		if idx < 0 {
@@ -170,7 +186,13 @@ func (ts *TranslateShader) AppendShader(glsl *SDFShader) error {
 }
 
 func main() {
-
+	s1, _ := NewSphere(0.5)
+	s2, _ := NewSphere(1)
+	s1 = Translate(s1, Vec{X: 2})
+	obj := Union(s1, s2)
+	var sfx SDFShader
+	obj.AppendShader(&sfx)
+	fmt.Printf("%s\n%s", sfx.Name, sfx.Body)
 }
 
 func minf(a, b float32) float32 {
