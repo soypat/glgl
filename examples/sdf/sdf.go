@@ -9,7 +9,9 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"io"
 	"math"
+	"os"
 	"runtime"
 	"strconv"
 )
@@ -47,6 +49,8 @@ type SDFShader struct {
 	Body []byte
 }
 
+func (s *Sphere) ForEachChild(flags int, fn func(flags int, s SDFShaderer) error) error { return nil }
+
 func (s *Sphere) AppendShader(glsl *SDFShader) error {
 	r := float64(s.R)
 	glsl.Name = append(glsl.Name, "sphere"...)
@@ -78,6 +82,7 @@ func (s *Sphere) Bounds() (min, max Vec) {
 type SDFShaderer interface {
 	Bounds() (min, max Vec)
 	AppendShader(glsl *SDFShader) error
+	ForEachChild(flags int, fn func(flags int, s SDFShaderer) error) error
 }
 
 type BinaryOpShader struct {
@@ -106,6 +111,14 @@ func (s *UnionShader) Bounds() (vmin, vmax Vec) {
 	vmin = Vec{X: minf(min1.X, min2.X), Y: minf(min1.Y, min2.Y), Z: minf(min1.Z, min2.Z)}
 	vmax = Vec{X: maxf(max1.X, max2.X), Y: maxf(max1.Y, max2.Y), Z: maxf(max1.Z, max2.Z)}
 	return vmin, vmax
+}
+
+func (s *UnionShader) ForEachChild(flags int, fn func(flags int, s SDFShaderer) error) error {
+	err := fn(flags, s.s1)
+	if err != nil {
+		return err
+	}
+	return fn(flags, s.s2)
 }
 
 func (s *UnionShader) AppendShader(glsl *SDFShader) error {
@@ -153,6 +166,10 @@ func (ts *TranslateShader) Bounds() (min, max Vec) {
 	return min, max
 }
 
+func (s *TranslateShader) ForEachChild(flags int, fn func(flags int, s SDFShaderer) error) error {
+	return fn(flags, s.s)
+}
+
 func (ts *TranslateShader) AppendShader(glsl *SDFShader) error {
 	glsl.Name = append(glsl.Name, "translate"...)
 	glsl.Name = strconv.AppendFloat(glsl.Name, float64(ts.p.X), fltFmtByte, fltPrec, 32)
@@ -190,9 +207,53 @@ func main() {
 	s2, _ := NewSphere(1)
 	s1 = Translate(s1, Vec{X: 2})
 	obj := Union(s1, s2)
-	var sfx SDFShader
-	obj.AppendShader(&sfx)
-	fmt.Printf("%s\n%s", sfx.Name, sfx.Body)
+
+	Children := []SDFShaderer{obj}
+	nextChild := 0
+
+	for len(Children[nextChild:]) > 0 {
+		prev := len(Children)
+		for _, obj := range Children[nextChild:] {
+			fmt.Printf("%T\n", obj)
+			obj.ForEachChild(0, func(flags int, s SDFShaderer) error {
+				Children = append(Children, s)
+				return nil
+			})
+		}
+		nextChild = prev
+	}
+
+	fp, err := os.Create("sdf_gen.glsl")
+	if err != nil {
+		panic(err)
+	}
+	fp.WriteString("#shader compute\n#version 430\n\n")
+	var scratch SDFShader
+	for i := len(Children) - 1; i >= 0; i-- {
+		_, err := writeShader(fp, Children[i], &scratch)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func writeShader(w io.Writer, s SDFShaderer, scratch *SDFShader) (int, error) {
+	scratch.Name = scratch.Name[:0]
+	scratch.Body = scratch.Body[:0]
+	scratch.Name = append(scratch.Name, "float "...)
+	err := s.AppendShader(scratch)
+	if err != nil {
+		return 0, err
+	}
+	scratch.Name = append(scratch.Name, "(vec3 p) {\n"...)
+
+	scratch.Body = append(scratch.Body, "\n}\n\n"...)
+	n, err := w.Write(scratch.Name)
+	if err != nil {
+		return n, err
+	}
+	n2, err := w.Write(scratch.Body)
+	return n + n2, err
 }
 
 func minf(a, b float32) float32 {
