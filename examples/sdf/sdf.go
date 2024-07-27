@@ -7,25 +7,130 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
 	"fmt"
 	"io"
+	"log"
 	"math"
-	"os"
 	"runtime"
 	"strconv"
-)
 
-const addThis = 20
-
-var (
-	//go:embed sdf.glsl
-	compute string
+	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/soypat/glgl/v4.6-core/glgl"
 )
 
 func init() {
 	// GLFW event handling must run on the main OS thread
 	runtime.LockOSThread()
+}
+
+func main() {
+	// Initialize the GL.
+	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
+		Title:   "compute",
+		Version: [2]int{4, 6},
+		Width:   1,
+		Height:  1,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer terminate()
+
+	// Make SDF shader program.
+	s1, _ := NewSphere(0.5)
+	s2, _ := NewSphere(1)
+	s1 = Translate(s1, Vec{X: 2})
+	obj := Union(s1, s2)
+
+	var source bytes.Buffer
+	_, err = writeProgram(&source, obj)
+	if err != nil {
+		panic(err)
+	}
+
+	// return
+	ss, err := glgl.ParseCombined(&source)
+	if err != nil {
+		log.Println("parsing:", err)
+		return
+	}
+	prog, err := glgl.CompileProgram(ss)
+	if err != nil {
+		log.Println("creating program:", err)
+		return
+	}
+	prog.Bind()
+	const div = 4
+	const min, max = -1, 1
+
+	inputArray := make([][3]float32, div*div*div)
+	for i := 0; i < div; i++ {
+		off1 := i * div * div
+		x := float32(i)*(max-min)/div + min
+		for j := 0; j < div; j++ {
+			off2 := off1 + j*div
+			y := float32(j)*(max-min)/div + min
+			for k := 0; k < div; k++ {
+				z := float32(k)*(max-min)/div + min
+				inputArray[off2+k] = [3]float32{x, y, z}
+			}
+		}
+	}
+	inputCfg := glgl.TextureImgConfig{
+		Type:           glgl.Texture2D,
+		Width:          len(inputArray),
+		Height:         1,
+		Access:         glgl.ReadOnly,
+		Format:         gl.RGB,
+		MinFilter:      gl.NEAREST,
+		MagFilter:      gl.NEAREST,
+		Xtype:          gl.FLOAT,
+		InternalFormat: gl.RGBA32F,
+		ImageUnit:      0,
+	}
+	_, err = glgl.NewTextureFromImage(inputCfg, inputArray)
+	if err != nil {
+		log.Println("creating input texture:", err)
+		return
+	}
+
+	outputArray := make([]float32, len(inputArray))
+	// Define OUTPUT texture.
+	outputCfg := glgl.TextureImgConfig{
+		Type:           glgl.Texture2D,
+		Width:          len(outputArray),
+		Height:         1,
+		Access:         glgl.WriteOnly,
+		Format:         gl.RED,
+		MinFilter:      gl.NEAREST,
+		MagFilter:      gl.NEAREST,
+		Xtype:          gl.FLOAT,
+		InternalFormat: gl.R32F,
+		ImageUnit:      1,
+	}
+	outputTex, err := glgl.NewTextureFromImage(outputCfg, outputArray)
+	if err != nil {
+		log.Println("creating output texture", err)
+		return
+	}
+
+	// Dispatch and wait for compute to finish.
+	err = prog.RunCompute(len(inputArray), 1, 1)
+	if err != nil {
+		log.Println("running compute shader", err)
+		return
+	}
+	err = glgl.GetImage(outputArray, outputTex, outputCfg)
+	if err != nil {
+		log.Println("acquiring results from GPU", err)
+		return
+	}
+	fmt.Println("SDF table position to distance:")
+	for i := range inputArray {
+		pos := inputArray[i]
+		fmt.Printf("x:%.2g\ty:%.2g\tz:%.2g\t-> %.3g\n", pos[0], pos[1], pos[2], outputArray[i])
+	}
+	// fmt.Println(source.String()) // Print generated shader source code.
 }
 
 type Vec struct {
@@ -60,7 +165,7 @@ func (s *Sphere) AppendShader(glsl *SDFShader) error {
 		glsl.Name[idx] = 'p'
 	}
 	glsl.Body = append(glsl.Body, "return length(p)-"...)
-	glsl.Body = strconv.AppendFloat(glsl.Body, r, 'f', fltPrec, 32)
+	glsl.Body = strconv.AppendFloat(glsl.Body, r, fltFmtByte, fltPrec, 32)
 	glsl.Body = append(glsl.Body, ';')
 	return nil
 }
@@ -202,20 +307,11 @@ func (ts *TranslateShader) AppendShader(glsl *SDFShader) error {
 	return nil
 }
 
-func main() {
-	s1, _ := NewSphere(0.5)
-	s2, _ := NewSphere(1)
-	s1 = Translate(s1, Vec{X: 2})
-	obj := Union(s1, s2)
-
-	fp, err := os.Create("sdf_gen.glsl")
-	if err != nil {
-		panic(err)
-	}
-	writeProgram(fp, obj)
-}
-
 func writeProgram(w io.Writer, obj SDFShaderer) (n int, err error) {
+	var scratch SDFShader
+	obj.AppendShader(&scratch)
+	topname := string(scratch.Name)
+
 	Children := []SDFShaderer{obj}
 	nextChild := 0
 	for len(Children[nextChild:]) > 0 {
@@ -229,11 +325,15 @@ func writeProgram(w io.Writer, obj SDFShaderer) (n int, err error) {
 		}
 		nextChild = prev
 	}
-	n, err = w.Write([]byte("#shader compute\n#version 430\n\n"))
+	const programHeader = `#shader compute
+#version 430
+`
+	n, err = w.Write([]byte(programHeader))
+
 	if err != nil {
 		return n, err
 	}
-	var scratch SDFShader
+
 	for i := len(Children) - 1; i >= 0; i-- {
 		ngot, err := writeShader(w, Children[i], &scratch)
 		n += ngot
@@ -241,7 +341,26 @@ func writeProgram(w io.Writer, obj SDFShaderer) (n int, err error) {
 			return n, err
 		}
 	}
-	return n, err
+	programMain := fmt.Sprintf(`
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(rgba32f, binding = 0) uniform image2D in_tex;
+// The binding argument refers to the textures Unit.
+layout(r32f, binding = 1) uniform image2D out_tex;
+
+void main() {
+	// get position to read/write data from.
+	ivec2 pos = ivec2( gl_GlobalInvocationID.xy );
+	// Get SDF position value.
+	vec3 p = imageLoad( in_tex, pos ).rgb;
+	float distance = %s(p);
+	// store new value in image
+	imageStore( out_tex, pos, vec4( distance, 0.0, 0.0, 0.0 ) );
+}
+	`, topname)
+
+	ngot, err := w.Write([]byte(programMain))
+	return n + ngot, err
 }
 
 func writeShader(w io.Writer, s SDFShaderer, scratch *SDFShader) (int, error) {
