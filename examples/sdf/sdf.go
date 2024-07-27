@@ -208,9 +208,16 @@ func main() {
 	s1 = Translate(s1, Vec{X: 2})
 	obj := Union(s1, s2)
 
+	fp, err := os.Create("sdf_gen.glsl")
+	if err != nil {
+		panic(err)
+	}
+	writeProgram(fp, obj)
+}
+
+func writeProgram(w io.Writer, obj SDFShaderer) (n int, err error) {
 	Children := []SDFShaderer{obj}
 	nextChild := 0
-
 	for len(Children[nextChild:]) > 0 {
 		prev := len(Children)
 		for _, obj := range Children[nextChild:] {
@@ -222,19 +229,19 @@ func main() {
 		}
 		nextChild = prev
 	}
-
-	fp, err := os.Create("sdf_gen.glsl")
+	n, err = w.Write([]byte("#shader compute\n#version 430\n\n"))
 	if err != nil {
-		panic(err)
+		return n, err
 	}
-	fp.WriteString("#shader compute\n#version 430\n\n")
 	var scratch SDFShader
 	for i := len(Children) - 1; i >= 0; i-- {
-		_, err := writeShader(fp, Children[i], &scratch)
+		ngot, err := writeShader(w, Children[i], &scratch)
+		n += ngot
 		if err != nil {
-			panic(err)
+			return n, err
 		}
 	}
+	return n, err
 }
 
 func writeShader(w io.Writer, s SDFShaderer, scratch *SDFShader) (int, error) {
