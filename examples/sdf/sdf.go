@@ -23,6 +23,15 @@ func init() {
 	runtime.LockOSThread()
 }
 
+func makeScene() SDFShaderer {
+	// Make SDF shader program.
+	s1, _ := NewSphere(0.5)
+	s2, _ := NewSphere(1)
+	s1 = Translate(s1, Vec{X: 2})
+	obj := Union(s1, s2)
+	return obj
+}
+
 func main() {
 	// Initialize the GL.
 	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
@@ -36,14 +45,8 @@ func main() {
 	}
 	defer terminate()
 
-	// Make SDF shader program.
-	s1, _ := NewSphere(0.5)
-	s2, _ := NewSphere(1)
-	s1 = Translate(s1, Vec{X: 2})
-	obj := Union(s1, s2)
-
 	var source bytes.Buffer
-	_, err = writeProgram(&source, obj)
+	_, err = writeProgram(&source, makeScene())
 	if err != nil {
 		panic(err)
 	}
