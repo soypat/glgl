@@ -11,6 +11,11 @@ import (
 	"github.com/chewxy/math32"
 )
 
+var (
+	_ = [1]byte{}[unsafe.Sizeof(Vec{})-3*4]  // Compile time check that Vec is 3 float32s long.
+	_ = [1]byte{}[unsafe.Sizeof(Quat{})-4*4] // Compile time check that Quat is 4 float32s long.
+)
+
 // RotationOrder is the order in which rotations will be transformed for the
 // purposes of AnglesToQuat.
 type RotationOrder int
@@ -66,10 +71,10 @@ func QuatIdent() Quat {
 	return Quat{W: 1.}
 }
 
-// QuatRotate creates an angle from an axis and an angle relative to that axis.
-//
-// This is cheaper than HomogRotate3D.
-func QuatRotate(angle float32, axis Vec) Quat {
+// RotationQuat creates a rotation quaternion
+// that rotates an angle relative an axis.
+// Call Rotate method on Quat to apply rotation.
+func RotationQuat(angle float32, axis Vec) Quat {
 	// angle = (float32(math.Pi) * angle) / 180.0
 	s, c := math32.Sincos(0.5 * angle)
 	return Quat{W: c, V: Scale(s, axis)}
@@ -175,7 +180,7 @@ func (q1 Quat) Dot(q2 Quat) float32 {
 	return q1.W*q2.W + q1.V.X*q2.V.X + q1.V.Y*q2.V.Y + q1.V.Z*q2.V.Z
 }
 
-// QuatSlerp is *S*pherical *L*inear Int*erp*olation, a method of interpolating
+// QuatSlerp is Spherical Linear intERPolation, a method of interpolating
 // between two quaternions. This always takes the straightest path on the sphere between
 // the two quaternions, and maintains constant velocity.
 //
@@ -315,10 +320,10 @@ func AnglesToQuat(angle1, angle2, angle3 float32, order RotationOrder) Quat {
 	return ret
 }
 
-// QuatLookAtV creates a rotation from an eye vector to a center vector
+// QuatLookAt creates a rotation from an eye point to a center point.
 //
 // It assumes the front of the rotated object at Z- and up at Y+
-func QuatLookAtV(eye, center, up Vec) Quat {
+func QuatLookAt(eye, center, upDir Vec) Quat {
 	// http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-17-quaternions/#I_need_an_equivalent_of_gluLookAt__How_do_I_orient_an_object_towards_a_point__
 	// https://bitbucket.org/sinbad/ogre/src/d2ef494c4a2f5d6e2f0f17d3bfb9fd936d5423bb/OgreMain/src/OgreCamera.cpp?at=default#cl-161
 
@@ -326,7 +331,7 @@ func QuatLookAtV(eye, center, up Vec) Quat {
 
 	// Find the rotation between the front of the object (that we assume towards Z-,
 	// but this depends on your model) and the desired direction
-	rotDir := QuatBetweenVectors(Vec{0, 0, -1}, direction)
+	rotDir := RotationBetweenVecsQuat(Vec{0, 0, -1}, direction)
 
 	// Recompute up so that it's perpendicular to the direction
 	// You can skip that part if you really want to force up
@@ -336,14 +341,14 @@ func QuatLookAtV(eye, center, up Vec) Quat {
 	// Because of the 1rst rotation, the up is probably completely screwed up.
 	// Find the rotation between the "up" of the rotated object, and the desired up
 	upCur := rotDir.Rotate(Vec{0, 1, 0})
-	rotUp := QuatBetweenVectors(upCur, up)
+	rotUp := RotationBetweenVecsQuat(upCur, upDir)
 
 	rotTarget := rotUp.Mul(rotDir) // remember, in reverse order.
 	return rotTarget.Inverse()     // camera rotation should be inversed!
 }
 
-// QuatBetweenVectors calculates the rotation between two vectors
-func QuatBetweenVectors(start, dest Vec) Quat {
+// RotationBetweenVecsQuat calculates the rotation between start and dest.
+func RotationBetweenVecsQuat(start, dest Vec) Quat {
 	// http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-17-quaternions/#I_need_an_equivalent_of_gluLookAt__How_do_I_orient_an_object_towards_a_point__
 	// https://github.com/g-truc/glm/blob/0.9.5/glm/gtx/quaternion.inl#L225
 	// https://bitbucket.org/sinbad/ogre/src/d2ef494c4a2f5d6e2f0f17d3bfb9fd936d5423bb/OgreMain/include/OgreVector3.h?at=default#cl-654
@@ -363,7 +368,7 @@ func QuatBetweenVectors(start, dest Vec) Quat {
 			axis = Cross(Vec{0, 1, 0}, start)
 		}
 
-		return QuatRotate(math.Pi, Unit(axis))
+		return RotationQuat(math.Pi, Unit(axis))
 	}
 
 	axis := Cross(start, dest)
@@ -373,6 +378,24 @@ func QuatBetweenVectors(start, dest Vec) Quat {
 		W: s * 0.5,
 		V: Scale(1.0/s, axis),
 	}
+}
+
+// RotationMat3 returns a rotation 3x3 matrix.
+func (q Quat) RotationMat3() Mat3 {
+	qv := q.V
+	qs := Skew(qv)
+	q01 := IdentityMat3()
+	q01 = ScaleMat3(q01, q.W*q.W)
+
+	qd := IdentityMat3()
+	qd = ScaleMat3(qd, Dot(qv, qv))
+	qs = ScaleMat3(qs, 2*q.W)
+
+	m := ScaleMat3(Prod(qv, qv), 2) // m = 2*[q]*[q]ᵀ
+	m = AddMat3(m, q01)             // m += q.Real*q.Real * [E]
+	m = AddMat3(m, qd)              // m += dot([q],[q])*[E]
+	m = AddMat3(m, qs)              // m += 2*q.Real * skew([q])
+	return m
 }
 
 /*

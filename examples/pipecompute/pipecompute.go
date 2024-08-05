@@ -67,7 +67,7 @@ func main() {
 		outputUnit = 2
 	)
 	inputCfg := glgl.TextureImgConfig{
-		Type:           glgl.Texture1D,
+		Type:           glgl.Texture2D,
 		Width:          len(inputArray),
 		Height:         1,
 		Access:         glgl.ReadOnly,

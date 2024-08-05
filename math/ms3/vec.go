@@ -1,10 +1,22 @@
 package ms3
 
-import math "github.com/chewxy/math32"
+import (
+	math "github.com/chewxy/math32"
+)
 
-// Vec is a 3D vector.
+// Vec is a 3D vector. It is composed of 3 float32 fields for x, y, and z values in that order.
 type Vec struct {
 	X, Y, Z float32
+}
+
+// Max returns the maximum component of a.
+func (a Vec) Max() float32 {
+	return math.Max(a.X, math.Max(a.Y, a.Z))
+}
+
+// Min returns the minimum component of a.
+func (a Vec) Min() float32 {
+	return math.Min(a.X, math.Min(a.Y, a.Z))
 }
 
 // Add returns the vector sum of p and q.
@@ -13,6 +25,15 @@ func Add(p, q Vec) Vec {
 		X: p.X + q.X,
 		Y: p.Y + q.Y,
 		Z: p.Z + q.Z,
+	}
+}
+
+// AddScalar adds f to all of v's components and returns the result.
+func AddScalar(v Vec, f float32) Vec {
+	return Vec{
+		X: v.X + f,
+		Y: v.Y + f,
+		Z: v.Z + f,
 	}
 }
 
@@ -47,11 +68,6 @@ func Cross(p, q Vec) Vec {
 		p.X*q.Y - p.Y*q.X,
 	}
 }
-
-// Rotate returns a new vector, rotated by alpha around the provided axis.
-// func Rotate(p Vec, alpha float32, axis Vec) Vec {
-// 	return NewRotation(alpha, axis).Rotate(p)
-// }
 
 // Norm returns the Euclidean norm of p
 //
@@ -144,14 +160,94 @@ func MulElem(a, b Vec) Vec {
 	}
 }
 
-// divElem returns the Hadamard product between vector a
+// DivElem returns the Hadamard product between vector a
 // and the inverse components of vector b.
 //
 //	v = {a.X/b.X, a.Y/b.Y, a.Z/b.Z}
-func divElem(a, b Vec) Vec {
+func DivElem(a, b Vec) Vec {
 	return Vec{
 		X: a.X / b.X,
 		Y: a.Y / b.Y,
 		Z: a.Z / b.Z,
 	}
+}
+
+// EqualElem checks equality between vector elements to within a tolerance.
+func EqualElem(a, b Vec, tol float32) bool {
+	return math.Abs(a.X-b.X) <= tol &&
+		math.Abs(a.Y-b.Y) <= tol &&
+		math.Abs(a.Z-b.Z) <= tol
+}
+
+// elem returns a vector with all elements of magnitude length.
+func elem(magnitude float32) Vec {
+	return Vec{X: magnitude, Y: magnitude, Z: magnitude}
+}
+
+// Round rounds the individual elements of a vector.
+func RoundElem(a Vec) Vec {
+	return Vec{X: math.Round(a.X), Y: math.Round(a.Y), Z: math.Round(a.Z)}
+}
+
+// CeilElem returns a with Ceil applied to each component.
+func CeilElem(a Vec) Vec {
+	return Vec{X: math.Ceil(a.X), Y: math.Ceil(a.Y), Z: math.Ceil(a.Z)}
+}
+
+// FloorElem returns a with Floor applied to each component.
+func FloorElem(a Vec) Vec {
+	return Vec{X: math.Floor(a.X), Y: math.Floor(a.Y), Z: math.Floor(a.Z)}
+}
+
+// Sign returns sign function applied to each individual component of a. If a component is zero then zero is returned.
+func SignElem(a Vec) Vec {
+	return Vec{X: Sign(a.X), Y: Sign(a.Y), Z: Sign(a.Z)}
+}
+
+// SinElem returns sin(a) component-wise.
+func SinElem(a Vec) Vec {
+	return Vec{X: math.Sin(a.X), Y: math.Sin(a.Y), Z: math.Sin(a.Z)}
+}
+
+// CosElem returns cos(a) component-wise.
+func CosElem(a Vec) Vec {
+	return Vec{X: math.Cos(a.X), Y: math.Cos(a.Y), Z: math.Cos(a.Z)}
+}
+
+// SincosElem returns (sin(a), cos(a)). Is more efficient than calling both SinElem and CosElem.
+func SincosElem(a Vec) (s, c Vec) {
+	s.X, c.X = math.Sincos(a.X)
+	s.Y, c.Y = math.Sincos(a.Y)
+	s.Z, c.Z = math.Sincos(a.Z)
+	return s, c
+}
+
+// Clamp returns v with its elements clamped to Min and Max's components.
+func ClampElem(v, Min, Max Vec) Vec {
+	return Vec{X: Clamp(v.X, Min.X, Max.X), Y: Clamp(v.Y, Min.Y, Max.Y), Z: Clamp(v.Z, Min.Z, Max.Z)}
+}
+
+// InterpElem performs a linear interpolation between x and y's elements, mapping with a's values in interval [0,1].
+// This function is also known as "mix" in OpenGL.
+func InterpElem(x, y, a Vec) Vec {
+	return Vec{X: Interp(x.X, y.X, a.X), Y: Clamp(x.Y, y.Y, a.Y), Z: Clamp(x.Z, y.Z, a.Z)}
+}
+
+// Sign returns -1, 0, or 1 for negative, zero or positive x argument, respectively, just like OpenGL's "sign" function.
+func Sign(x float32) float32 {
+	if x == 0 {
+		return 0
+	}
+	return math.Copysign(1, x)
+}
+
+// Clamp returns value v clamped between Min and Max.
+func Clamp(v, Min, Max float32) float32 {
+	return math.Min(Max, math.Max(v, Min))
+}
+
+// Interp performs the linear interpolation between x and y, mapping with a in interval [0,1].
+// This function is known as "mix" in OpenGL.
+func Interp(x, y, a float32) float32 {
+	return x*(1-a) + y*a
 }

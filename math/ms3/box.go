@@ -1,9 +1,12 @@
 package ms3
 
-import math "github.com/chewxy/math32"
+import (
+	math "github.com/chewxy/math32"
+)
 
 // Box is a 3D bounding box. Well formed Boxes Min components
-// are smaller than Max components.
+// are smaller than Max components. Max is the most positive/largest vertex,
+// Min is the most negative/smallest vertex.
 type Box struct {
 	Min, Max Vec
 }
@@ -15,6 +18,13 @@ func NewBox(x0, y0, z0, x1, y1, z1 float32) Box {
 		Min: Vec{X: math.Min(x0, x1), Y: math.Min(y0, y1), Z: math.Min(z0, z1)},
 		Max: Vec{X: math.Max(x0, x1), Y: math.Max(y0, y1), Z: math.Max(z0, z1)},
 	}
+}
+
+// NewCenteredBox returns a box centered around center with size dimensions.
+func NewCenteredBox(center, size Vec) Box {
+	size = MaxElem(size, Vec{}) // set negative values to zero.
+	half := Scale(0.5, size)
+	return Box{Min: Sub(center, half), Max: Add(center, half)}
 }
 
 // IsEmpty returns true if a Box's volume is zero
@@ -47,8 +57,8 @@ func (a Box) Center() Vec {
 //	 {4, 5}, {5, 6}, {6, 7}, {7, 4},
 //	 {0, 4}, {1, 5}, {2, 6}, {3, 7},
 //	}
-func (a Box) Vertices() []Vec {
-	return []Vec{
+func (a Box) Vertices() [8]Vec {
+	return [8]Vec{
 		0: a.Min,
 		1: {X: a.Max.X, Y: a.Min.Y, Z: a.Min.Z},
 		2: {X: a.Max.X, Y: a.Max.Y, Z: a.Min.Z},
@@ -64,13 +74,31 @@ func (a Box) Vertices() []Vec {
 func (a Box) Union(b Box) Box {
 	if a.Empty() {
 		return b
-	}
-	if b.Empty() {
+	} else if b.Empty() {
 		return a
 	}
 	return Box{
 		Min: MinElem(a.Min, b.Min),
 		Max: MaxElem(a.Max, b.Max),
+	}
+}
+
+// Intersect returns a box enclosing the box space shared by both boxes.
+func (a Box) Intersect(b Box) (intersect Box) {
+	// Calculate the intersection minimum and maximum coordinates using MinElem and MaxElem
+	intersect.Min = MaxElem(a.Min, b.Min)
+	intersect.Max = MinElem(a.Max, b.Max)
+	if intersect.Empty() {
+		return Box{}
+	}
+	return intersect
+}
+
+// IncludePoint returns a box containing both the receiver and the argument point.
+func (a Box) IncludePoint(point Vec) Box {
+	return Box{
+		Min: MinElem(a.Min, point),
+		Max: MaxElem(a.Max, point),
 	}
 }
 
@@ -86,25 +114,22 @@ func (a Box) Add(v Vec) Box {
 func (a Box) Scale(scale Vec) Box {
 	scale = MaxElem(scale, Vec{})
 	// TODO(soypat): Probably a better way to do this.
-	return centeredBox(a.Center(), MulElem(scale, a.Size()))
-}
-
-// centeredBox creates a Box with a given center and size.
-// Negative components of size will be interpreted as zero.
-func centeredBox(center, size Vec) Box {
-	size = MaxElem(size, Vec{}) // set negative values to zero.
-	half := Scale(0.5, size)
-	return Box{Min: Sub(center, half), Max: Add(center, half)}
+	return NewCenteredBox(a.Center(), MulElem(scale, a.Size()))
 }
 
 // Contains returns true if v is contained within the bounds of the Box.
-func (a Box) Contains(v Vec) bool {
+func (a Box) Contains(point Vec) bool {
 	if a.Empty() {
-		return v == a.Min && v == a.Max
+		return point == a.Min && point == a.Max
 	}
-	return a.Min.X <= v.X && v.X <= a.Max.X &&
-		a.Min.Y <= v.Y && v.Y <= a.Max.Y &&
-		a.Min.Z <= v.Z && v.Z <= a.Max.Z
+	return a.Min.X <= point.X && point.X <= a.Max.X &&
+		a.Min.Y <= point.Y && point.Y <= a.Max.Y &&
+		a.Min.Z <= point.Z && point.Z <= a.Max.Z
+}
+
+// Equal returns true if a and b are within tol of eachother for each box limit component.
+func (a Box) Equal(b Box, tol float32) bool {
+	return EqualElem(a.Min, b.Min, tol) && EqualElem(a.Max, b.Max, tol)
 }
 
 // Canon returns the canonical version of a. The returned Box has minimum
