@@ -29,7 +29,7 @@ func Add(p, q Vec) Vec {
 }
 
 // AddScalar adds f to all of v's components and returns the result.
-func AddScalar(v Vec, f float32) Vec {
+func AddScalar(f float32, v Vec) Vec {
 	return Vec{
 		X: v.X + f,
 		Y: v.Y + f,
