@@ -105,16 +105,23 @@ func (a Box) IncludePoint(point Vec) Box {
 // Add adds v to the bounding box components.
 // It is the equivalent of translating the Box by v.
 func (a Box) Add(v Vec) Box {
-	return Box{Add(a.Min, v), Add(a.Max, v)}
+	return Box{Min: Add(a.Min, v), Max: Add(a.Max, v)}
 }
 
-// Scale returns a new Box scaled by a size vector around its center.
+// ScaleCentered returns a new Box scaled by a size vector around its center.
 // The scaling is done element wise which is to say the Box's X dimension
 // is scaled by scale.X. Negative elements of scale are interpreted as zero.
-func (a Box) Scale(scale Vec) Box {
+func (a Box) ScaleCentered(scale Vec) Box {
 	scale = MaxElem(scale, Vec{})
 	// TODO(soypat): Probably a better way to do this.
 	return NewCenteredBox(a.Center(), MulElem(scale, a.Size()))
+}
+
+// Scale scales the box dimensions and positions in 3 directions. Does not preserve box center.
+// Negative elements of scale can be used to mirror box dimension.
+func (a Box) Scale(scale Vec) Box {
+	newCenter := MulElem(scale, a.Center())
+	return NewCenteredBox(newCenter, MulElem(AbsElem(scale), a.Size()))
 }
 
 // Contains returns true if v is contained within the bounds of the Box.
