@@ -13,7 +13,7 @@ type Box struct {
 
 // NewBox is shorthand for Box{Min:Vec{x0,y0}, Max:Vec{x1,y1}}.
 // The sides are swapped so that the resulting Box is well formed.
-func NewBox(x0, y0, z0, x1, y1, z1 float32) Box {
+func NewBox(x0, y0, x1, y1 float32) Box {
 	return Box{
 		Min: Vec{X: math.Min(x0, x1), Y: math.Min(y0, y1)},
 		Max: Vec{X: math.Max(x0, x1), Y: math.Max(y0, y1)},

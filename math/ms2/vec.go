@@ -4,7 +4,7 @@ import (
 	math "github.com/chewxy/math32"
 )
 
-// Vec is a 3D vector. It is composed of 3 float32 fields for x, y, and z values in that order.
+// Vec is a 2D vector. It is composed of 2 float32 fields for x and y values in that order.
 type Vec struct {
 	X, Y float32
 }

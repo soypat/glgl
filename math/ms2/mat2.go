@@ -4,7 +4,7 @@ import (
 	math "github.com/chewxy/math32"
 )
 
-// Mat2 is a 3x3 matrix.
+// Mat2 is a 2x2 matrix.
 type Mat2 struct {
 	x00, x01 float32
 	x10, x11 float32
@@ -17,14 +17,14 @@ func NewMat2(v []float32) (m Mat2) {
 	return m
 }
 
-// IdentityMat3 returns the 3x3 identity matrix.
+// IdentityMat2 returns the 2x2 identity matrix.
 func IdentityMat2() Mat2 {
 	return Mat2{
 		1, 0,
 		0, 1}
 }
 
-// EqualMat3 tests the equality of 3x3 matrices.
+// EqualMat2 tests the equality of 2x2 matrices.
 func EqualMat2(a, b Mat2, tolerance float32) bool {
 	return math.Abs(a.x00-b.x00) < tolerance &&
 		math.Abs(a.x01-b.x01) < tolerance &&
@@ -32,7 +32,7 @@ func EqualMat2(a, b Mat2, tolerance float32) bool {
 		math.Abs(a.x11-b.x11) < tolerance
 }
 
-// MulMat3 multiplies 3x3 matrices.
+// MulMat2 multiplies two 2x2 matrices.
 func MulMat2(a, b Mat2) Mat2 {
 	return Mat2{
 		a.x00*b.x00 + a.x01*b.x10,
@@ -42,7 +42,7 @@ func MulMat2(a, b Mat2) Mat2 {
 	}
 }
 
-// AddMat3 two 3x3 matrices.
+// AddMat2 adds two 2x2 matrices together.
 func AddMat2(a, b Mat2) Mat2 {
 	return Mat2{
 		x00: a.x00 + b.x00,
@@ -80,8 +80,8 @@ func MulMatVecTrans(m Mat2, v Vec) (result Vec) {
 	return result
 }
 
-// ScaleMat3 multiplies each 3x3 matrix component by a scalar.
-func ScaleMat3(a Mat2, k float32) Mat2 {
+// ScaleMat2 multiplies each 2x2 matrix component by a scalar.
+func ScaleMat2(a Mat2, k float32) Mat2 {
 	return Mat2{
 		x00: k * a.x00,
 		x10: k * a.x10,
@@ -90,12 +90,12 @@ func ScaleMat3(a Mat2, k float32) Mat2 {
 	}
 }
 
-// Determinant returns the determinant of a 3x3 matrix.
+// Determinant returns the determinant of a 2x2 matrix.
 func (a Mat2) Determinant() float32 {
 	return a.x00*a.x11 - a.x10*a.x01
 }
 
-// Inverse returns the inverse of a 3x3 matrix.
+// Inverse returns the inverse of a 2x2 matrix.
 func (a Mat2) Inverse() Mat2 {
 	m := Mat2{}
 	det := a.Determinant()
@@ -110,7 +110,7 @@ func (a Mat2) Inverse() Mat2 {
 	return m
 }
 
-// VecRow returns the ith row as a Vec.
+// VecRow returns the ith row as a Vec. VecRow panics if i is not 0 or 1.
 func (m Mat2) VecRow(i int) Vec {
 	switch i {
 	case 0:
@@ -121,7 +121,7 @@ func (m Mat2) VecRow(i int) Vec {
 	panic("out of bounds")
 }
 
-// VecCol returns the jth column as a Vec.
+// VecCol returns the jth column as a Vec. VecCol panics if j is not 0 or 1.
 func (m Mat2) VecCol(j int) Vec {
 	switch j {
 	case 0:
@@ -132,7 +132,7 @@ func (m Mat2) VecCol(j int) Vec {
 	panic("out of bounds")
 }
 
-// Put stores the matrix values into slice b in row major order. If b is not of length 9 or greater Put panics.
+// Put stores the matrix values into slice b in row major order. If b is not of length 4 or greater Put panics.
 func (m Mat2) Put(b []float32) {
 	_ = b[3]
 	b[0], b[1], b[2], b[3] = m.x00, m.x01, m.x10, m.x11

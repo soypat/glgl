@@ -59,7 +59,7 @@ func (a Mat3) mulPosition(x, y float32) (float32, float32) {
 		a.x10*x + a.x11*y + a.x12
 }
 
-// MulMat3 multiplies 3x3 matrices.
+// MulMat3 multiplies two 3x3 matrices.
 func MulMat3(a, b Mat3) Mat3 {
 	m := Mat3{}
 	m.x00 = a.x00*b.x00 + a.x01*b.x10 + a.x02*b.x20
@@ -74,7 +74,7 @@ func MulMat3(a, b Mat3) Mat3 {
 	return m
 }
 
-// AddMat3 two 3x3 matrices.
+// AddMat3 adds two 3x3 matrices together.
 func AddMat3(a, b Mat3) Mat3 {
 	return Mat3{
 		x00: a.x00 + b.x00,
