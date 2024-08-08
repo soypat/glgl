@@ -89,7 +89,7 @@ func AddMat3(a, b Mat3) Mat3 {
 	}
 }
 
-// ProdMat3 performs vector multiplication as if they were matrices
+// Prod performs vector multiplication as if they were matrices
 //
 //	m = v1 * v2ᵀ
 func Prod(v1, v2t Vec) Mat3 {
