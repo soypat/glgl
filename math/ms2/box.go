@@ -30,7 +30,7 @@ func NewCenteredBox(center, size Vec) Box {
 // IsEmpty returns true if a Box's volume is zero
 // or if a Min component is greater than its Max component.
 func (a Box) Empty() bool {
-	return a.Min.X >= a.Max.X || a.Min.Y >= a.Max.Y || a.Min.Z >= a.Max.Z
+	return a.Min.X >= a.Max.X || a.Min.Y >= a.Max.Y
 }
 
 // Size returns the size of the Box.
