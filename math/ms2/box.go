@@ -52,8 +52,8 @@ func (a Box) Center() Vec {
 //  2. Bottom right.
 //  3. Top right.
 //  4. Top left.
-func (a Box) Vertices() []Vec {
-	return []Vec{
+func (a Box) Vertices() [4]Vec {
+	return [4]Vec{
 		0: a.Min,
 		1: {a.Max.X, a.Min.Y},
 		2: a.Max,
