@@ -24,6 +24,11 @@ func (a Vec) Array() [3]float32 {
 	return [3]float32{a.X, a.Y, a.Z}
 }
 
+// AllNonzero returns true if all elements of a are nonzero.
+func (a Vec) AllNonzero() bool {
+	return a.X != 0 && a.Y != 0 && a.Z != 0
+}
+
 // Add returns the vector sum of p and q.
 func Add(p, q Vec) Vec {
 	return Vec{
