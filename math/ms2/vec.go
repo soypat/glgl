@@ -1,4 +1,4 @@
-package ms3
+package ms2
 
 import (
 	math "github.com/chewxy/math32"
