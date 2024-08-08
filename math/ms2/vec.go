@@ -19,6 +19,11 @@ func (a Vec) Min() float32 {
 	return math.Min(a.X, a.Y)
 }
 
+// Array returns the ordered components of Vec in a 2 element array [a.x,a.y].
+func (a Vec) Array() [2]float32 {
+	return [2]float32{a.X, a.Y}
+}
+
 // Add returns the vector sum of p and q.
 func Add(p, q Vec) Vec {
 	return Vec{
