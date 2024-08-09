@@ -61,6 +61,11 @@ func Scale(f float32, p Vec) Vec {
 	}
 }
 
+// Cross returns the cross product p×q.
+func Cross(p, q Vec) float32 {
+	return p.X*q.Y - p.Y*q.X
+}
+
 // Dot returns the dot product p·q.
 func Dot(p, q Vec) float32 {
 	return p.X*q.X + p.Y*q.Y
@@ -210,4 +215,20 @@ func clamp(v, Min, Max float32) float32 {
 // This function is known as "mix" in OpenGL.
 func interp(x, y, a float32) float32 {
 	return x*(1-a) + y*a
+}
+
+// pol is a polar coordinate tuple.
+type pol struct {
+	R     float32
+	Theta float32
+}
+
+// Cartesian converts polar coordinates p to cartesian coordinates.
+func (p pol) Cartesian() Vec {
+	return Vec{X: p.R * math.Cos(p.Theta), Y: p.R * math.Sin(p.Theta)}
+}
+
+// polar converts cartesian coordinates v to polar coordinates.
+func (v Vec) polar() pol {
+	return pol{Norm(v), math.Atan2(v.Y, v.X)}
 }

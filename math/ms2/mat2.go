@@ -143,3 +143,12 @@ func (m Mat2) Array() (rowmajor [4]float32) {
 	m.Put(rowmajor[:])
 	return rowmajor
 }
+
+// Rotate returns an orthographic 2x2 rotation matrix (right hand rule).
+func RotationMat2(a float32) Mat2 {
+	s, c := math.Sincos(a)
+	return Mat2{
+		c, -s,
+		s, c,
+	}
+}
