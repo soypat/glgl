@@ -52,6 +52,14 @@ func (p *PolygonBuilder) AddRelativeXY(x, y float32) *PolygonVertex {
 	return p.AddRelative(Vec{X: x, Y: y})
 }
 
+// Close adds a vertex on the position of the first vertex and returns it. If vertices is empty Close returns nil.
+func (p *PolygonBuilder) Close() *PolygonVertex {
+	if len(p.verts) > 0 {
+		return p.Add(p.verts[0].v)
+	}
+	return nil
+}
+
 // DropLast drops the last vertex. Can be called multiple times to drop several vertices.
 func (p *PolygonBuilder) DropLast() {
 	if len(p.verts) > 0 {
