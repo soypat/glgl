@@ -20,6 +20,26 @@ type PolygonVertex struct {
 	facets int32   // Amount of facets to create when smoothing. If negative indicates arcing instead of smoothing.
 }
 
+// Nagon sets the vertices of p to that of a N sided regular polygon. If n<3 then Nagon does nothing.
+func (p *PolygonBuilder) Nagon(n int, centerDistance float32) {
+	p.NagonSmoothed(n, centerDistance, 0, 0)
+}
+
+// NagonSmoothed sets the vertices of p to that of a N sided regular polygon and smoothes the result.
+// If n<3 or radius<centerDistance then Nagon does nothing.
+func (p *PolygonBuilder) NagonSmoothed(n int, centerDistance float32, facets int, radius float32) {
+	if n < 3 || (radius != 0 && radius > centerDistance) {
+		return
+	}
+	p.verts = p.verts[:0] // Reset buffer.
+	m := RotationMat2(2 * math.Pi / float32(n))
+	v := Vec{X: centerDistance, Y: 0}
+	for i := 0; i < n; i++ {
+		p.Add(v).Smooth(radius, facets)
+		v = MulMatVec(m, v)
+	}
+}
+
 // Add adds a point in absolute cartesian coordinates to the polygon being built.
 func (p *PolygonBuilder) Add(v Vec) *PolygonVertex {
 	p.verts = append(p.verts, PolygonVertex{v: v})
