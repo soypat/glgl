@@ -32,8 +32,8 @@ func (t Triangle) Normal() Vec {
 func (t Triangle) IsDegenerate(tol float32) bool {
 	longIdx := t.longIdx()
 	// calculate vertex distance from longest side
-	ln := pline{t[longIdx], t[(longIdx+1)%3]}
-	dist := ln.distance(t[(longIdx+2)%3])
+	ln := Line{t[longIdx], t[(longIdx+1)%3]}
+	dist := ln.Distance(t[(longIdx+2)%3])
 	return dist <= tol
 }
 
@@ -99,23 +99,23 @@ func (t Triangle) sides() (Vec, Vec, Vec) {
 	return Sub(t[1], t[0]), Sub(t[2], t[1]), Sub(t[0], t[2])
 }
 
-// pline is an infinite 3D line
+// Line is an infinite 3D line
 // defined by two points on the line.
-type pline [2]Vec
+type Line [2]Vec
 
-// vecOnLine takes a value between 0 and 1 to linearly
+// Interpolate takes a value between 0 and 1 to linearly
 // interpolate a point on the line.
 //
-//	vecOnLine(0) returns l[0]
-//	vecOnLine(1) returns l[1]
-func (l pline) vecOnLine(t float32) Vec {
+//	Interpolate(0) returns l[0]
+//	Interpolate(1) returns l[1]
+func (l Line) Interpolate(t float32) Vec {
 	lineDir := Sub(l[1], l[0])
 	return Add(l[0], Scale(t, lineDir))
 }
 
-// distance returns the minimum euclidean distance of point p
-// to the line.
-func (l pline) distance(p Vec) float32 {
+// Distance returns the minimum euclidean Distance of point p
+// to the infinite line.
+func (l Line) Distance(p Vec) float32 {
 	// https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
 	num := Norm(Cross(Sub(p, l[0]), Sub(p, l[1])))
 	return num / Norm(Sub(l[1], l[0]))
