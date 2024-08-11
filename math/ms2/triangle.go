@@ -63,27 +63,27 @@ func (t Triangle) IsDegenerate(tol float32) bool {
 		longIdx = 2
 	}
 	// calculate vertex distance from longest side
-	ln := line{t[longIdx], t[(longIdx+1)%3]}
-	dist := ln.distance(t[(longIdx+2)%3])
+	ln := Line{t[longIdx], t[(longIdx+1)%3]}
+	dist := ln.Distance(t[(longIdx+2)%3])
 	return dist <= tol
 }
 
-// line is an infinite 3D line
-// defined by two points on the line.
-type line [2]Vec
+// Line is an infinite 3D Line
+// defined by two points on the Line.
+type Line [2]Vec
 
-// vecOnLine takes a value between 0 and 1 to linearly
+// Interpolate takes a value between 0 and 1 to linearly
 // interpolate a point on the line.
 //
-//	vecOnLine(0) returns l[0]
-//	vecOnLine(1) returns l[1]
-func (l line) vecOnLine(t float32) Vec {
+//	Interpolate(0) returns l[0]
+//	Interpolate(1) returns l[1]
+func (l Line) Interpolate(t float32) Vec {
 	lineDir := Sub(l[1], l[0])
 	return Add(l[0], Scale(t, lineDir))
 }
 
-// distance returns the minimum euclidean distance of point p to the line.
-func (l line) distance(p Vec) float32 {
+// Distance returns the minimum euclidean Distance of point p to the line.
+func (l Line) Distance(p Vec) float32 {
 	// https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
 	p1 := l[0]
 	p2 := l[1]
@@ -120,18 +120,4 @@ func (t Triangle) orderedLengths() (a, b, c float32) {
 // sides returns vectors for each of the sides of t.
 func (t Triangle) sides() (Vec, Vec, Vec) {
 	return Sub(t[1], t[0]), Sub(t[2], t[1]), Sub(t[0], t[2])
-}
-
-// pline is an infinite 3D line
-// defined by two points on the line.
-type pline [2]Vec
-
-// vecOnLine takes a value between 0 and 1 to linearly
-// interpolate a point on the line.
-//
-//	vecOnLine(0) returns l[0]
-//	vecOnLine(1) returns l[1]
-func (l pline) vecOnLine(t float32) Vec {
-	lineDir := Sub(l[1], l[0])
-	return Add(l[0], Scale(t, lineDir))
 }
