@@ -63,8 +63,7 @@ func (p *PolygonBuilder) AddRelative(v Vec) *PolygonVertex {
 	if last == nil {
 		return p.Add(v) // If no vertices present take origin as start point.
 	}
-	p.verts = append(p.verts, PolygonVertex{v: Add(last.v, v)})
-	return &p.verts[len(p.verts)-1]
+	return p.Add(Add(last.v, v))
 }
 
 // AddRelativeXY is shorthand for [PolygonBuilder.AddRelative]([Vec]{x,y}).
