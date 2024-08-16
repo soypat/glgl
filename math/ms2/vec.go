@@ -94,6 +94,11 @@ func Unit(p Vec) Vec {
 	return Scale(1/Norm(p), p)
 }
 
+// Cos returns the cosine of the opening angle between p and q.
+func Cos(p, q Vec) float32 {
+	return Dot(p, q) / (Norm(p) * Norm(q))
+}
+
 // MinElem return a vector with the minimum components of two vectors.
 func MinElem(a, b Vec) Vec {
 	return Vec{

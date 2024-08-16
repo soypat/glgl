@@ -104,6 +104,15 @@ func (a Mat4) MulPosition(b Vec) Vec {
 
 // MulBox rotates/translates a 3d bounding box and resizes for axis-alignment.
 func (a Mat4) MulBox(box Box) Box {
+	// Below is equivalent code:
+	// box2 := box
+	// verts := box.Vertices()
+	// for _, v := range verts {
+	// 	v = a.MulPosition(v)
+	// 	box2.Max = MaxElem(box2.Max, v)
+	// 	box2.Min = MinElem(box2.Min, v)
+	// }
+	// return box2
 	r := Vec{X: a.x00, Y: a.x10, Z: a.x20}
 	u := Vec{X: a.x01, Y: a.x11, Z: a.x21}
 	b := Vec{X: a.x02, Y: a.x12, Z: a.x22}
@@ -118,9 +127,11 @@ func (a Mat4) MulBox(box Box) Box {
 	xa, xb = MinElem(xa, xb), MaxElem(xa, xb)
 	ya, yb = MinElem(ya, yb), MaxElem(ya, yb)
 	za, zb = MinElem(za, zb), MaxElem(za, zb)
-	min := Add(xa, Add(ya, Add(za, t)))
-	max := Add(xb, Add(yb, Add(zb, t)))
-	return Box{Min: min, Max: max}
+	newBox := Box{
+		Min: Add(xa, Add(ya, Add(za, t))),
+		Max: Add(xb, Add(yb, Add(zb, t))),
+	}
+	return newBox
 }
 
 // Determinant returns the determinant of a 4x4 matrix.

@@ -71,14 +71,6 @@ func (p *PolygonBuilder) AddRelativeXY(x, y float32) *PolygonVertex {
 	return p.AddRelative(Vec{X: x, Y: y})
 }
 
-// Close adds a vertex on the position of the first vertex and returns it. If vertices is empty Close returns nil.
-func (p *PolygonBuilder) Close() *PolygonVertex {
-	if len(p.verts) > 0 {
-		return p.Add(p.verts[0].v)
-	}
-	return nil
-}
-
 // DropLast drops the last vertex. Can be called multiple times to drop several vertices.
 func (p *PolygonBuilder) DropLast() {
 	if len(p.verts) > 0 {
@@ -91,9 +83,9 @@ func (p *PolygonBuilder) Reset() {
 	p.verts = p.verts[:0]
 }
 
-// AppendVertices appends the Polygon representation to the argument buffer and returns the result.
+// AppendVecs appends the Polygon's discretized representation to the argument Vec buffer and returns the result.
 // It does not change the internal state of the PolygonBuilder and thus can be called repeatedly.
-func (p *PolygonBuilder) AppendVertices(buf []Vec) ([]Vec, error) {
+func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 	if len(p.verts) < 2 {
 		return buf, errors.New("too few vertices")
 	}
@@ -104,6 +96,7 @@ func (p *PolygonBuilder) AppendVertices(buf []Vec) ([]Vec, error) {
 		if current.isArc() {
 			buf = appendArc(buf, current, prev)
 		} else if current.isSmoothed() {
+			buf = buf[:len(buf)-1] // Smoothed vertex is consumed and replaced.
 			next := p.verts[(i+1)%len(p.verts)]
 			buf = appendSmooth(buf, current, prev, next)
 		}
@@ -181,7 +174,7 @@ func appendArc(buf []Vec, v, vPrev PolygonVertex) []Vec {
 }
 
 func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
-	if !v.isSmoothed() {
+	if !v.isSmoothed() || v.facets == 1 {
 		return buf
 	}
 	r := v.radius
@@ -190,11 +183,14 @@ func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
 	r = math.Abs(r)
 
 	// Work out angle.
-	normVP := Norm(Sub(vPrev.v, v.v))
-	normVN := Norm(Sub(vNext.v, v.v))
-	v0 := Scale(1./normVP, vPrev.v)
-	v1 := Scale(1./normVN, vNext.v)
-	theta := math.Acos(Dot(v0, v1))
+
+	vp := Sub(vPrev.v, v.v)
+	vn := Sub(vNext.v, v.v)
+	normVP := Norm(vp)
+	normVN := Norm(vn)
+	v0 := Scale(1./normVP, vp)
+	v1 := Scale(1./normVN, vn)
+	theta := math.Acos(Dot(vp, vn) / (normVN * normVP))
 
 	d1 := r / math.Tan(theta/2)
 	if d1 > normVP || d1 > normVN || math.IsNaN(theta) {
@@ -213,9 +209,9 @@ func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
 	T := RotationMat2(dtheta) // rotation matrix.
 	rv := Sub(p0, c)          // radius vector
 
-	for i := int32(0); i < facets; i++ {
-		buf = append(buf, Add(c, rv))
+	for i := int32(0); i < facets-1; i++ {
 		rv = MulMatVec(T, rv)
+		buf = append(buf, Add(c, rv))
 	}
 	return buf
 }
