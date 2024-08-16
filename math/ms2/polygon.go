@@ -112,6 +112,7 @@ func (p *PolygonBuilder) last() *PolygonVertex {
 	return nil
 }
 
+// Smooth smoothes this polygon vertex by a radius and discretises the smoothing in facets.
 func (v *PolygonVertex) Smooth(radius float32, facets int) {
 	if radius > 0 && facets > 0 {
 		v.radius = radius
@@ -119,6 +120,11 @@ func (v *PolygonVertex) Smooth(radius float32, facets int) {
 	}
 }
 
+// Arc creates an arc between this and the previous PolygonVertex
+// discretised by facets starting at previous radius.
+//
+// A positive radius specifies counter-clockwise path,
+// a negative radius specifies a clockwise path.
 func (v *PolygonVertex) Arc(radius float32, facets int) {
 	if radius != 0 && facets > 0 {
 		v.radius = radius
@@ -130,45 +136,57 @@ func (v *PolygonVertex) isArc() bool      { return v.facets < 0 && v.radius != 0
 
 const sqrtHalf = math.Sqrt2 / 2
 
+// Chamfer is a smoothing of a single facet of length `size`.
 func (v *PolygonVertex) Chamfer(size float32) {
 	v.Smooth(size*sqrtHalf, 1)
 }
 
-func appendArc(buf []Vec, v, vPrev PolygonVertex) []Vec {
-	if !v.isArc() {
+func appendArc(buf []Vec, vCurr, vPrev PolygonVertex) []Vec {
+	facets := -vCurr.facets
+	if facets == 1 {
 		return buf
 	}
-	r := v.radius
-	facets := -v.facets
-
-	side := sign(r)
+	r := vCurr.radius
+	isNeg := r < 0
 	r = math.Abs(r)
-	// Two points on chord.
-	a, b := vPrev.v, v.v
+	v := vCurr.v
+	p := vPrev.v
+	vp := Sub(p, v)
+	chordCenter := Add(v, Scale(0.5, vp))
+	normVP := Norm(vp)
+	if normVP > 2*r {
+		return buf
+	}
+	// Theta is the opening angle from the center of the arc circle
+	// to the two chord points.
+	// Due to chord definition theta/2 is the angle formed
+	// by the chord and the tangent to the chord point.
+	thetaDiv2 := math.Asin(normVP / (2 * r))
 
-	// Normal to chord.
-	ba := Unit(Sub(b, a))
-	n := Scale(side, Vec{X: ba.X, Y: -ba.X})
+	if math.Abs(thetaDiv2-math.Pi/2) < 1e-6 {
+		// Ill conditioned arc. Do a little correction.
+		thetaDiv2 -= 1e-6
+	}
+	dtheta := 2 * thetaDiv2 / float32(facets)
+	// Beta is the opening angle formed by the two chord point tangents.
+	// beta := 2 * (math.Pi/2 - thetaDiv2)
 
-	// midpoint and distance from A to midpoint.
-	mid := Scale(0.5, Add(a, b))
-	dMid := Norm(Sub(mid, a))
-
-	// Distance from midpoint to center of arc.
-	dCenter := math.Sqrt(r*r - dMid*dMid)
-	// center of arc.
-	c := Add(mid, Scale(dCenter, n))
-	ac := Unit(Sub(a, c))
-	bc := Unit(Sub(b, c))
-
-	// Prepare rotation for building arc.
-	dtheta := -side * math.Acos(Dot(ac, bc)) / float32(v.facets)
+	var perp Vec
+	if !isNeg {
+		dtheta *= -1
+		perp = Vec{X: vp.Y, Y: -vp.X}
+	} else {
+		perp = Vec{X: -vp.Y, Y: vp.X}
+	}
+	// x is the minimum distance from arc center to chord.
+	x := 0.5 * normVP / math.Tan(thetaDiv2)
+	perp = Scale(x/normVP, perp) // Scale perp to reach arc center.
+	arcCenter := Add(chordCenter, perp)
 	T := RotationMat2(dtheta)
-	rv := MulMatVec(T, Sub(a, c))
-
-	for i := int32(0); i < facets; i++ {
-		buf = append(buf, Add(c, rv))
+	rv := Sub(p, arcCenter)
+	for i := int32(0); i < facets-1; i++ {
 		rv = MulMatVec(T, rv)
+		buf = append(buf, Add(arcCenter, rv))
 	}
 	return buf
 }
