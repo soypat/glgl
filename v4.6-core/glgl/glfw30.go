@@ -1,4 +1,4 @@
-//go:build glfw30
+//go:build glfw30 && !tinygo && cgo
 
 package glgl
 

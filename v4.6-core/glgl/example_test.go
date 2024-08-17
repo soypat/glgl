@@ -1,3 +1,5 @@
+//go:build !tinygo && cgo
+
 package glgl_test
 
 import (
