@@ -240,7 +240,7 @@ func ClampElem(v, Min, Max Vec) Vec {
 // InterpElem performs a linear interpolation between x and y's elements, mapping with a's values in interval [0,1].
 // This function is also known as "mix" in OpenGL.
 func InterpElem(x, y, a Vec) Vec {
-	return Vec{X: Interp(x.X, y.X, a.X), Y: Clamp(x.Y, y.Y, a.Y), Z: Clamp(x.Z, y.Z, a.Z)}
+	return Vec{X: Interp(x.X, y.X, a.X), Y: Interp(x.Y, y.Y, a.Y), Z: Interp(x.Z, y.Z, a.Z)}
 }
 
 // Sign returns -1, 0, or 1 for negative, zero or positive x argument, respectively, just like OpenGL's "sign" function.
