@@ -162,6 +162,15 @@ func (a Mat3) Inverse() Mat3 {
 	return m
 }
 
+// Transpose returns the transpose of a.
+func (a Mat3) Transpose() Mat3 {
+	return Mat3{
+		x00: a.x00, x01: a.x10, x02: a.x20,
+		x10: a.x01, x11: a.x11, x12: a.x21,
+		x20: a.x02, x21: a.x12, x22: a.x22,
+	}
+}
+
 // VecRow returns the ith row as a Vec.
 func (m Mat3) VecRow(i int) Vec {
 	switch i {

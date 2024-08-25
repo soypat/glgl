@@ -95,6 +95,14 @@ func (a Mat2) Determinant() float32 {
 	return a.x00*a.x11 - a.x10*a.x01
 }
 
+// Transpose returns the transpose of a.
+func (a Mat2) Transpose() Mat2 {
+	return Mat2{
+		x00: a.x00, x01: a.x10,
+		x10: a.x01, x11: a.x11,
+	}
+}
+
 // Inverse returns the inverse of a 2x2 matrix.
 func (a Mat2) Inverse() Mat2 {
 	m := Mat2{}

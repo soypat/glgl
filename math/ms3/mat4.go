@@ -150,6 +150,16 @@ func (a Mat4) Determinant() float32 {
 		a.x03*a.x12*a.x20*a.x31 + a.x03*a.x12*a.x21*a.x30
 }
 
+// Transpose returns the transpose of a.
+func (a Mat4) Transpose() Mat4 {
+	return Mat4{
+		x00: a.x00, x01: a.x10, x02: a.x20, x03: a.x30,
+		x10: a.x01, x11: a.x11, x12: a.x21, x13: a.x31,
+		x20: a.x02, x21: a.x12, x22: a.x22, x23: a.x32,
+		x30: a.x03, x31: a.x13, x32: a.x23, x33: a.x33,
+	}
+}
+
 // Inverse returns the inverse of a 4x4 matrix. Does not check for singularity.
 func (a Mat4) Inverse() Mat4 {
 	m := Mat4{}
