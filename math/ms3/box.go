@@ -147,3 +147,9 @@ func (a Box) Canon() Box {
 		Max: MaxElem(a.Min, a.Max),
 	}
 }
+
+// Diagonal returns a's diagonal length: sqrt(L*L + W*W + H*H).
+func (a Box) Diagonal() float32 {
+	sz := a.Size()
+	return math.Hypot(math.Hypot(sz.X, sz.Y), sz.Z)
+}
