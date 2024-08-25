@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	math "github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
 )
 
 // PolygonBuilder facilitates polygon construction with arcs, smoothing and chamfers
@@ -222,7 +223,7 @@ func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
 	vc := Unit(Add(v0, v1))
 	c := Add(v.v, Scale(d2, vc))
 
-	dtheta := sign(Cross(v1, v0)) * (math.Pi - theta) / float32(facets)
+	dtheta := ms1.Sign(Cross(v1, v0)) * (math.Pi - theta) / float32(facets)
 
 	T := RotationMat2(dtheta) // rotation matrix.
 	rv := Sub(p0, c)          // radius vector
