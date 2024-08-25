@@ -2,6 +2,7 @@ package ms3
 
 import (
 	math "github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
 )
 
 // Vec is a 3D vector. It is composed of 3 float32 fields for x, y, and z values in that order.
@@ -211,7 +212,7 @@ func FloorElem(a Vec) Vec {
 
 // Sign returns sign function applied to each individual component of a. If a component is zero then zero is returned.
 func SignElem(a Vec) Vec {
-	return Vec{X: Sign(a.X), Y: Sign(a.Y), Z: Sign(a.Z)}
+	return Vec{X: ms1.Sign(a.X), Y: ms1.Sign(a.Y), Z: ms1.Sign(a.Z)}
 }
 
 // SinElem returns sin(a) component-wise.
@@ -234,30 +235,17 @@ func SincosElem(a Vec) (s, c Vec) {
 
 // Clamp returns v with its elements clamped to Min and Max's components.
 func ClampElem(v, Min, Max Vec) Vec {
-	return Vec{X: Clamp(v.X, Min.X, Max.X), Y: Clamp(v.Y, Min.Y, Max.Y), Z: Clamp(v.Z, Min.Z, Max.Z)}
+	return Vec{X: ms1.Clamp(v.X, Min.X, Max.X), Y: ms1.Clamp(v.Y, Min.Y, Max.Y), Z: ms1.Clamp(v.Z, Min.Z, Max.Z)}
 }
 
 // InterpElem performs a linear interpolation between x and y's elements, mapping with a's values in interval [0,1].
 // This function is also known as "mix" in OpenGL.
 func InterpElem(x, y, a Vec) Vec {
-	return Vec{X: Interp(x.X, y.X, a.X), Y: Interp(x.Y, y.Y, a.Y), Z: Interp(x.Z, y.Z, a.Z)}
+	return Vec{X: ms1.Interp(x.X, y.X, a.X), Y: ms1.Interp(x.Y, y.Y, a.Y), Z: ms1.Interp(x.Z, y.Z, a.Z)}
 }
 
-// Sign returns -1, 0, or 1 for negative, zero or positive x argument, respectively, just like OpenGL's "sign" function.
-func Sign(x float32) float32 {
-	if x == 0 {
-		return 0
-	}
-	return math.Copysign(1, x)
-}
-
-// Clamp returns value v clamped between Min and Max.
-func Clamp(v, Min, Max float32) float32 {
-	return math.Min(Max, math.Max(v, Min))
-}
-
-// Interp performs the linear interpolation between x and y, mapping with a in interval [0,1].
-// This function is known as "mix" in OpenGL.
-func Interp(x, y, a float32) float32 {
-	return x*(1-a) + y*a
+// SmoothStepElem performs element-wise smooth cubic hermite
+// interpolation between 0 and 1 when e0 < x < e1.
+func SmoothStepElem(e0, e1, x Vec) Vec {
+	return Vec{X: ms1.SmoothStep(e0.X, e1.X, x.X), Y: ms1.SmoothStep(e0.Y, e1.Y, x.Y), Z: ms1.SmoothStep(e0.Z, e1.Z, x.Z)}
 }

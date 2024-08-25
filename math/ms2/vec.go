@@ -2,6 +2,7 @@ package ms2
 
 import (
 	math "github.com/chewxy/math32"
+	"github.com/soypat/glgl/math/ms1"
 )
 
 // Vec is a 2D vector. It is composed of 2 float32 fields for x and y values in that order.
@@ -172,7 +173,7 @@ func FloorElem(a Vec) Vec {
 
 // Sign returns sign function applied to each individual component of a. If a component is zero then zero is returned.
 func SignElem(a Vec) Vec {
-	return Vec{X: sign(a.X), Y: sign(a.Y)}
+	return Vec{X: ms1.Sign(a.X), Y: ms1.Sign(a.Y)}
 }
 
 // SinElem returns sin(a) component-wise.
@@ -194,32 +195,13 @@ func SincosElem(a Vec) (s, c Vec) {
 
 // Clamp returns v with its elements clamped to Min and Max's components.
 func ClampElem(v, Min, Max Vec) Vec {
-	return Vec{X: clamp(v.X, Min.X, Max.X), Y: clamp(v.Y, Min.Y, Max.Y)}
+	return Vec{X: ms1.Clamp(v.X, Min.X, Max.X), Y: ms1.Clamp(v.Y, Min.Y, Max.Y)}
 }
 
 // InterpElem performs a linear interpolation between x and y's elements, mapping with a's values in interval [0,1].
 // This function is also known as "mix" in OpenGL.
 func InterpElem(x, y, a Vec) Vec {
-	return Vec{X: interp(x.X, y.X, a.X), Y: interp(x.Y, y.Y, a.Y)}
-}
-
-// sign returns -1, 0, or 1 for negative, zero or positive x argument, respectively, just like OpenGL's "sign" function.
-func sign(x float32) float32 {
-	if x == 0 {
-		return 0
-	}
-	return math.Copysign(1, x)
-}
-
-// clamp returns value v clamped between Min and Max.
-func clamp(v, Min, Max float32) float32 {
-	return math.Min(Max, math.Max(v, Min))
-}
-
-// interp performs the linear interpolation between x and y, mapping with a in interval [0,1].
-// This function is known as "mix" in OpenGL.
-func interp(x, y, a float32) float32 {
-	return x*(1-a) + y*a
+	return Vec{X: ms1.Interp(x.X, y.X, a.X), Y: ms1.Interp(x.Y, y.Y, a.Y)}
 }
 
 // pol is a polar coordinate tuple.
@@ -236,4 +218,10 @@ func (p pol) Cartesian() Vec {
 // polar converts cartesian coordinates v to polar coordinates.
 func (v Vec) polar() pol {
 	return pol{Norm(v), math.Atan2(v.Y, v.X)}
+}
+
+// SmoothStepElem performs element-wise smooth cubic hermite
+// interpolation between 0 and 1 when e0 < x < e1.
+func SmoothStepElem(e0, e1, x Vec) Vec {
+	return Vec{X: ms1.SmoothStep(e0.X, e1.X, x.X), Y: ms1.SmoothStep(e0.Y, e1.Y, x.Y)}
 }
