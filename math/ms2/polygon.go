@@ -93,13 +93,16 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 	prev := p.verts[len(p.verts)-1]
 	for i := range p.verts {
 		current := p.verts[i]
-		buf = append(buf, current.v)
 		if current.isArc() {
 			buf = appendArc(buf, current, prev)
+			buf = append(buf, current.v)
 		} else if current.isSmoothed() {
+			buf = append(buf, current.v)
 			buf = buf[:len(buf)-1] // Smoothed vertex is consumed and replaced.
 			next := p.verts[(i+1)%len(p.verts)]
 			buf = appendSmooth(buf, current, prev, next)
+		} else {
+			buf = append(buf, current.v)
 		}
 		prev = current
 	}
@@ -148,48 +151,59 @@ func appendArc(buf []Vec, vCurr, vPrev PolygonVertex) []Vec {
 		return buf
 	}
 	r := vCurr.radius
+	return appendArc2points(buf, vPrev.v, vCurr.v, r, facets)
+}
+
+func appendArc2points(dst []Vec, p1, p2 Vec, r float32, facets int32) []Vec {
 	isNeg := r < 0
-	r = math.Abs(r)
-	v := vCurr.v
-	p := vPrev.v
-	vp := Sub(p, v)
-	chordCenter := Add(v, Scale(0.5, vp))
-	normVP := Norm(vp)
-	if normVP > 2*r {
-		return buf
+	if isNeg {
+		r = -r
+	}
+	V12 := Sub(p2, p1)
+	chordCenter := Add(p1, Scale(0.5, V12))
+	chordLen := Norm(V12) // Chord length.
+	if chordLen > 2*r {
+		return dst
 	}
 	// Theta is the opening angle from the center of the arc circle
 	// to the two chord points.
 	// Due to chord definition theta/2 is the angle formed
 	// by the chord and the tangent to the chord point.
-	thetaDiv2 := math.Asin(normVP / (2 * r))
-
-	if math.Abs(thetaDiv2-math.Pi/2) < 1e-6 {
-		// Ill conditioned arc. Do a little correction.
-		thetaDiv2 -= 1e-6
+	chordThetaDiv2 := math.Asin(chordLen / (2 * r))
+	diffTo90 := chordThetaDiv2 - math.Pi/2
+	if math.Abs(diffTo90) < 1e-6 {
+		// Ill conditioned arc. Do a little correction away from the 90 degree mark.
+		chordThetaDiv2 += math.Copysign(1e-6, -diffTo90)
 	}
-	dtheta := 2 * thetaDiv2 / float32(facets)
-	// Beta is the opening angle formed by the two chord point tangents.
-	// beta := 2 * (math.Pi/2 - thetaDiv2)
+	// dtheta will be the angle between points on the arc.
+	dtheta := 2 * chordThetaDiv2 / float32(facets)
 
+	// We now find the arc center. To do this we look at the radius
+	// sign which will tell us the orientation of the arc (clockwise vs counterclockwise).
 	var perp Vec
-	if !isNeg {
-		dtheta *= -1
-		perp = Vec{X: vp.Y, Y: -vp.X}
+	if isNeg {
+		// Y:-X -> for the simple case V12=Vec{X:1} this results in
+		// perp=Vec{Y:-1}. If we place arc center in that direction
+		// that will result in a clockwise arc, so negative angle.
+		dtheta = -dtheta
+		perp = Vec{X: V12.Y, Y: -V12.X}
 	} else {
-		perp = Vec{X: -vp.Y, Y: vp.X}
+		perp = Vec{X: -V12.Y, Y: V12.X}
 	}
-	// x is the minimum distance from arc center to chord.
-	x := 0.5 * normVP / math.Tan(thetaDiv2)
-	perp = Scale(x/normVP, perp) // Scale perp to reach arc center.
+	// x is distance from arc center to chord center.
+	x := 0.5 * chordLen / math.Tan(chordThetaDiv2)
+	// Perp is scaled to be of length x.
+	// Then, simply add perp for arc center.
+	perp = Scale(x/chordLen, perp)
 	arcCenter := Add(chordCenter, perp)
+	// Begin from p1 and make way to point right before p2. We do not add p1 and p2.
 	T := RotationMat2(dtheta)
-	rv := Sub(p, arcCenter)
+	rv := Sub(p1, arcCenter)
 	for i := int32(0); i < facets-1; i++ {
 		rv = MulMatVec(T, rv)
-		buf = append(buf, Add(arcCenter, rv))
+		dst = append(dst, Add(arcCenter, rv))
 	}
-	return buf
+	return dst
 }
 
 func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
@@ -200,13 +214,16 @@ func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
 	facets := v.facets
 
 	r = math.Abs(r)
-
 	// Work out angle.
-
 	vp := Sub(vPrev.v, v.v)
 	vn := Sub(vNext.v, v.v)
 	normVP := Norm(vp)
 	normVN := Norm(vn)
+	// l1 := Line{vPrev.v, v.v}
+	// p1 := l1.Interpolate((normVP - r) / normVP)
+	// l2 := Line{vNext.v, v.v}
+	// p2 := l2.Interpolate((normVN - r) / normVN)
+	// p3 :=
 	v0 := Scale(1./normVP, vp)
 	v1 := Scale(1./normVN, vn)
 	theta := math.Acos(Dot(vp, vn) / (normVN * normVP))
