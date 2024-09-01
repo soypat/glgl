@@ -9,7 +9,7 @@ type Mat2 [2 * 2]float32
 
 func (a *Mat2) Index(i, j int) int { return i*2+j }
 
-func (a *Mat2) at(i, j int) float32 { return a[i*2+j] }
+func (a *Mat2) at(i, j int)float32 { return a[i*2+j] }
 
 func (a *Mat2) set(i, j int, f float32) { a[i*2+j] = f }
 
