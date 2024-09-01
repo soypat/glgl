@@ -4,18 +4,19 @@ import (
 	"errors"
 
 	math "github.com/chewxy/math32"
-	"github.com/soypat/glgl/math/ms1"
 )
 
 // PolygonBuilder facilitates polygon construction with arcs, smoothing and chamfers
-// with the [PolygonVertex] type.
+// with the [PolygonControlPoint] type.
 type PolygonBuilder struct {
-	verts []PolygonVertex
+	verts []PolygonControlPoint
 }
 
-// PolygonVertex represents a polygon point joined by two edges. It is
-// used by the [PolygonBuilder] type.
-type PolygonVertex struct {
+// PolygonControlPoint represents a polygon point joined by two edges, or alternatively
+// a smoothed control point, in which case the vertex does not lie in the polygon.
+// It is used by the [PolygonBuilder] type and notably returned by the Add* methods
+// so that the user may control the polygon's shape. By default represents a vertex joining two other neighboring vertices.
+type PolygonControlPoint struct {
 	v      Vec     // Absolute vertex position.
 	radius float32 // Smoothing radius, if zero then no smoothing.
 	facets int32   // Amount of facets to create when smoothing. If negative indicates arcing instead of smoothing.
@@ -32,7 +33,7 @@ func (p *PolygonBuilder) NagonSmoothed(n int, centerDistance float32, facets int
 	if n < 3 || (radius != 0 && radius > centerDistance) {
 		return
 	}
-	p.verts = p.verts[:0] // Reset buffer.
+	p.Reset()
 	m := RotationMat2(2 * math.Pi / float32(n))
 	v := Vec{X: centerDistance, Y: 0}
 	for i := 0; i < n; i++ {
@@ -42,24 +43,24 @@ func (p *PolygonBuilder) NagonSmoothed(n int, centerDistance float32, facets int
 }
 
 // Add adds a point in absolute cartesian coordinates to the polygon being built.
-func (p *PolygonBuilder) Add(v Vec) *PolygonVertex {
-	p.verts = append(p.verts, PolygonVertex{v: v})
+func (p *PolygonBuilder) Add(v Vec) *PolygonControlPoint {
+	p.verts = append(p.verts, PolygonControlPoint{v: v})
 	return &p.verts[len(p.verts)-1]
 }
 
 // AddXY adds a point in absolute cartesian coordinates to the polygon being built.
-func (p *PolygonBuilder) AddXY(x, y float32) *PolygonVertex {
+func (p *PolygonBuilder) AddXY(x, y float32) *PolygonControlPoint {
 	return p.Add(Vec{X: x, Y: y})
 }
 
 // AddPolarRTheta adds a point in absolute polar coordinates to the polygon being built.
-func (p *PolygonBuilder) AddPolarRTheta(r, theta float32) *PolygonVertex {
+func (p *PolygonBuilder) AddPolarRTheta(r, theta float32) *PolygonControlPoint {
 	return p.Add(pol{R: r, Theta: theta}.Cartesian())
 }
 
 // AddRelative adds a point in absolute cartesian coordinates to the polygon being built, relative to last vertex added.
 // If no vertices present then takes origin (x=0,y=0) as reference.
-func (p *PolygonBuilder) AddRelative(v Vec) *PolygonVertex {
+func (p *PolygonBuilder) AddRelative(v Vec) *PolygonControlPoint {
 	last := p.last()
 	if last == nil {
 		return p.Add(v) // If no vertices present take origin as start point.
@@ -68,7 +69,7 @@ func (p *PolygonBuilder) AddRelative(v Vec) *PolygonVertex {
 }
 
 // AddRelativeXY is shorthand for [PolygonBuilder.AddRelative]([Vec]{x,y}).
-func (p *PolygonBuilder) AddRelativeXY(x, y float32) *PolygonVertex {
+func (p *PolygonBuilder) AddRelativeXY(x, y float32) *PolygonControlPoint {
 	return p.AddRelative(Vec{X: x, Y: y})
 }
 
@@ -98,7 +99,7 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 			buf = append(buf, current.v)
 		} else if current.isSmoothed() {
 			next := p.verts[(i+1)%len(p.verts)]
-			buf = appendSmooth(buf, current, prev, next)
+			buf = appendSmoothedCorner(buf, prev.v, current.v, next.v, current.radius, current.facets)
 		} else {
 			buf = append(buf, current.v)
 		}
@@ -107,7 +108,7 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 	return buf, nil
 }
 
-func (p *PolygonBuilder) last() *PolygonVertex {
+func (p *PolygonBuilder) last() *PolygonControlPoint {
 	if len(p.verts) > 0 {
 		return &p.verts[len(p.verts)-1]
 	}
@@ -115,7 +116,7 @@ func (p *PolygonBuilder) last() *PolygonVertex {
 }
 
 // Smooth smoothes this polygon vertex by a radius and discretises the smoothing in facets.
-func (v *PolygonVertex) Smooth(radius float32, facets int) {
+func (v *PolygonControlPoint) Smooth(radius float32, facets int) {
 	if radius > 0 && facets > 0 {
 		v.radius = radius
 		v.facets = int32(facets)
@@ -127,23 +128,26 @@ func (v *PolygonVertex) Smooth(radius float32, facets int) {
 //
 // A positive radius specifies counter-clockwise path,
 // a negative radius specifies a clockwise path.
-func (v *PolygonVertex) Arc(radius float32, facets int) {
+func (v *PolygonControlPoint) Arc(radius float32, facets int) {
 	if radius != 0 && facets > 0 {
 		v.radius = radius
 		v.facets = -int32(facets)
 	}
 }
-func (v *PolygonVertex) isSmoothed() bool { return v.facets > 0 && v.radius > 0 }
-func (v *PolygonVertex) isArc() bool      { return v.facets < 0 && v.radius != 0 }
+func (v *PolygonControlPoint) isSmoothed() bool { return v.facets > 0 && v.radius > 0 }
+func (v *PolygonControlPoint) isArc() bool      { return v.facets < 0 && v.radius != 0 }
 
 const sqrtHalf = math.Sqrt2 / 2
 
 // Chamfer is a smoothing of a single facet of length `size`.
-func (v *PolygonVertex) Chamfer(size float32) {
+func (v *PolygonControlPoint) Chamfer(size float32) {
 	v.Smooth(size*sqrtHalf, 1)
 }
 
 func appendArc2points(dst []Vec, p1, p2 Vec, r float32, facets int32) []Vec {
+	if facets <= 1 {
+		return dst // Nothing to do.
+	}
 	arcCenter, arcAngle, ok := arcCenterFrom2points(p1, p2, r)
 	if !ok {
 		return dst
@@ -197,48 +201,27 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, bool) {
 	return Add(chordCenter, perp), math.Copysign(2*chordThetaDiv2, r), true
 }
 
-func appendSmooth(buf []Vec, v, vPrev, vNext PolygonVertex) []Vec {
-	if !v.isSmoothed() || v.facets == 1 {
-		return buf
+func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) []Vec {
+	if facets <= 1 {
+		return dst // Chamfer case facets==1.
 	}
-	r := v.radius
-	facets := v.facets
+	// Calculate midpoint between two control points.
+	// The arc center of corner will lie in direction of this midpoint from corner point p1.
+	V10 := Sub(p0, p1)
+	V12 := Sub(p2, p1)
+	dir := Scale(0.5, Add(Unit(V10), Unit(V12)))
+	arcCenter := Add(p1, Scale(r*math.Sqrt2, Unit(dir)))
+	arcCosAngle := Cos(Sub(p0, arcCenter), Sub(p2, arcCenter))
+	arcAngle := math.Acos(arcCosAngle)
+	arcAngle = applyOrientation(arcAngle, p0, p1, p2)
+	return appendArcWithCenter(dst, p0, arcCenter, arcAngle, facets)
+}
 
-	r = math.Abs(r)
-	// Work out angle.
-	vp := Sub(vPrev.v, v.v)
-	vn := Sub(vNext.v, v.v)
-	normVP := Norm(vp)
-	normVN := Norm(vn)
-	// l1 := Line{vPrev.v, v.v}
-	// p1 := l1.Interpolate((normVP - r) / normVP)
-	// l2 := Line{vNext.v, v.v}
-	// p2 := l2.Interpolate((normVN - r) / normVN)
-	// p3 :=
-	v0 := Scale(1./normVP, vp)
-	v1 := Scale(1./normVN, vn)
-	theta := math.Acos(Dot(vp, vn) / (normVN * normVP))
-
-	d1 := r / math.Tan(theta/2)
-	if d1 > normVP || d1 > normVN || math.IsNaN(theta) {
-		return buf
-	}
-
-	p0 := Add(v.v, Scale(d1, v0)) // Tangent points.
-
-	d2 := r / math.Sin(theta/2)
-
-	vc := Unit(Add(v0, v1))
-	c := Add(v.v, Scale(d2, vc))
-
-	dtheta := ms1.Sign(Cross(v1, v0)) * (math.Pi - theta) / float32(facets)
-
-	T := RotationMat2(dtheta) // rotation matrix.
-	rv := Sub(p0, c)          // radius vector
-
-	for i := int32(0); i < facets-1; i++ {
-		rv = MulMatVec(T, rv)
-		buf = append(buf, Add(c, rv))
-	}
-	return buf
+// applyOrientation calculates the orientation of 3 ordered points in 2D plane and applies the sign
+// to f and returns it. Counter-clockwise ordering is positive, clockwise negative.
+func applyOrientation(f float32, p1, p2, p3 Vec) float32 {
+	// See C++ version: https://www.geeksforgeeks.org/orientation-3-ordered-points/
+	slope1 := (p2.Y - p1.Y) * (p3.X - p2.X)
+	slope2 := (p3.Y - p2.Y) * (p2.X - p1.X)
+	return math.Copysign(f, slope2-slope1)
 }
