@@ -2,6 +2,7 @@ package ms2
 
 import (
 	"errors"
+	"fmt"
 
 	math "github.com/chewxy/math32"
 )
@@ -91,17 +92,21 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 	if len(p.verts) < 2 {
 		return buf, errors.New("too few vertices")
 	}
+	var err error
 	prev := p.verts[len(p.verts)-1]
 	for i := range p.verts {
 		current := p.verts[i]
 		if current.isArc() {
-			buf = appendArc2points(buf, prev.v, current.v, current.radius, -current.facets)
+			buf, err = appendArc2points(buf, prev.v, current.v, current.radius, -current.facets)
 			buf = append(buf, current.v)
 		} else if current.isSmoothed() {
 			next := p.verts[(i+1)%len(p.verts)]
-			buf = appendSmoothedCorner(buf, prev.v, current.v, next.v, current.radius, current.facets)
+			buf, err = appendSmoothedCorner(buf, prev.v, current.v, next.v, current.radius, current.facets)
 		} else {
 			buf = append(buf, current.v)
+		}
+		if err != nil {
+			return buf, fmt.Errorf("control point %d: %w", i, err)
 		}
 		prev = current
 	}
@@ -144,15 +149,15 @@ func (v *PolygonControlPoint) Chamfer(size float32) {
 	v.Smooth(size*sqrtHalf, 1)
 }
 
-func appendArc2points(dst []Vec, p1, p2 Vec, r float32, facets int32) []Vec {
+func appendArc2points(dst []Vec, p1, p2 Vec, r float32, facets int32) ([]Vec, error) {
 	if facets <= 1 {
-		return dst // Nothing to do.
+		return dst, nil // Nothing to do.
 	}
-	arcCenter, arcAngle, ok := arcCenterFrom2points(p1, p2, r)
-	if !ok {
-		return dst
+	arcCenter, arcAngle, err := arcCenterFrom2points(p1, p2, r)
+	if err != nil {
+		return dst, err
 	}
-	return appendArcWithCenter(dst, p1, arcCenter, arcAngle, facets)
+	return appendArcWithCenter(dst, p1, arcCenter, arcAngle, facets), nil
 }
 
 func appendArcWithCenter(dst []Vec, start, center Vec, arcAngle float32, facets int32) []Vec {
@@ -166,13 +171,13 @@ func appendArcWithCenter(dst []Vec, start, center Vec, arcAngle float32, facets 
 	return dst
 }
 
-func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, bool) {
+func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, error) {
 	rabs := math.Abs(r)
 	V12 := Sub(p2, p1)
 	chordCenter := Add(p1, Scale(0.5, V12))
 	chordLen := Norm(V12) // Chord length.
 	if chordLen > 2*rabs {
-		return Vec{}, 0, false // Panic?
+		return Vec{}, 0, errSmallArcRadius
 	}
 	// Theta is the opening angle from the center of the arc circle
 	// to the two chord points.
@@ -198,13 +203,19 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, bool) {
 	// Perp is scaled to be of length x.
 	// Then, simply add perp for arc center.
 	perp = Scale(x/chordLen, perp)
-	return Add(chordCenter, perp), math.Copysign(2*chordThetaDiv2, r), true
+	return Add(chordCenter, perp), math.Copysign(2*chordThetaDiv2, r), nil
 }
 
-func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) []Vec {
-	const tol = 1e-6
+var (
+	errLargeSmoothRadius = errors.New("smoothing radius too large")
+	errSmallArcRadius    = errors.New("arc radius too small")
+	errSmallSmoothAngle  = errors.New("badly conditioned smoothing")
+)
+
+func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([]Vec, error) {
+	const tol = 5e-1
 	if facets <= 1 {
-		return dst // Chamfer case facets==1.
+		return dst, nil // Chamfer case facets==1.
 	}
 	// Calculate midpoint between two control points.
 	// The arc center of corner will lie in direction of this midpoint from corner point p1.
@@ -212,23 +223,41 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) []
 	norm10 := Norm(V10)
 	V12 := Sub(p2, p1)
 	norm12 := Norm(V12)
+	if norm10 < r || norm12 < r {
+		return dst, errLargeSmoothRadius
+	}
+	// Normalize vectors.
 	V10 = Scale(1/norm10, V10)
 	V12 = Scale(1/norm12, V12)
-	dir := Scale(0.5, Add(V10, V12))
-	start := Add(p1, Scale(r, V10))
-	end := Add(p1, Scale(r, V12))
+
+	// theta is opening angle between two vectors going from smoothed corner p1 to p0 and p2.
+	theta := math.Acos(Dot(V10, V12) / (norm10 * norm12))
+	if math.Abs(theta) < tol {
+		return dst, errSmallSmoothAngle
+	} else if math.Abs(theta-math.Pi) < tol {
+		return dst, errSmallSmoothAngle
+	}
+
+	sint, cost := math.Sincos(0.5 * theta)
+	h := r / (sint / cost)
+	// h is distance to tangent points on arc.
+	start := Add(p1, Scale(h, V10))
+	end := Add(p1, Scale(h, V12))
 	if !EqualElem(p0, start, tol*norm10) {
 		dst = append(dst, start) // Cap smooth if p0 point not near radius start.
 	}
-	arcCenter := Add(p1, Scale(r*math.Sqrt2, Unit(dir)))
-	arcCosAngle := Cos(Sub(start, arcCenter), Sub(end, arcCenter))
-	arcAngle := math.Acos(arcCosAngle)
+
+	// Now find chord midpoint and find arc center using dc, distance from p1 to arc center.
+	// chordMidpoint := Scale(0.5, Add(start, end))
+	arcCenterDir := Unit(Add(V10, V12))
+	arcCenter := Add(p1, Scale(r/sint, arcCenterDir))
+	arcAngle := math.Pi - theta
 	arcAngle = applyOrientation(arcAngle, start, p1, end)
 	dst = appendArcWithCenter(dst, start, arcCenter, arcAngle, facets)
 	if !EqualElem(p2, end, tol*norm12) {
 		dst = append(dst, end) // Cap smooth if p2 point not near radius end.
 	}
-	return dst
+	return dst, nil
 }
 
 // applyOrientation calculates the orientation of 3 ordered points in 2D plane and applies the sign
