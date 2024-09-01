@@ -202,19 +202,33 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, bool) {
 }
 
 func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) []Vec {
+	const tol = 1e-6
 	if facets <= 1 {
 		return dst // Chamfer case facets==1.
 	}
 	// Calculate midpoint between two control points.
 	// The arc center of corner will lie in direction of this midpoint from corner point p1.
 	V10 := Sub(p0, p1)
+	norm10 := Norm(V10)
 	V12 := Sub(p2, p1)
-	dir := Scale(0.5, Add(Unit(V10), Unit(V12)))
+	norm12 := Norm(V12)
+	V10 = Scale(1/norm10, V10)
+	V12 = Scale(1/norm12, V12)
+	dir := Scale(0.5, Add(V10, V12))
+	start := Add(p1, Scale(r, V10))
+	end := Add(p1, Scale(r, V12))
+	if !EqualElem(p0, start, tol*norm10) {
+		dst = append(dst, start) // Cap smooth if p0 point not near radius start.
+	}
 	arcCenter := Add(p1, Scale(r*math.Sqrt2, Unit(dir)))
-	arcCosAngle := Cos(Sub(p0, arcCenter), Sub(p2, arcCenter))
+	arcCosAngle := Cos(Sub(start, arcCenter), Sub(end, arcCenter))
 	arcAngle := math.Acos(arcCosAngle)
-	arcAngle = applyOrientation(arcAngle, p0, p1, p2)
-	return appendArcWithCenter(dst, p0, arcCenter, arcAngle, facets)
+	arcAngle = applyOrientation(arcAngle, start, p1, end)
+	dst = appendArcWithCenter(dst, start, arcCenter, arcAngle, facets)
+	if !EqualElem(p2, end, tol*norm12) {
+		dst = append(dst, end) // Cap smooth if p2 point not near radius end.
+	}
+	return dst
 }
 
 // applyOrientation calculates the orientation of 3 ordered points in 2D plane and applies the sign
