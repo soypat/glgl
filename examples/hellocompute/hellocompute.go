@@ -8,9 +8,10 @@ import (
 	"runtime"
 	"strings"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/soypat/glgl/v4.6-core/glgl"
-	"golang.org/x/exp/slog"
 )
 
 const (
@@ -35,25 +36,25 @@ func main() {
 		Height:  height,
 	})
 	if err != nil {
-		slog.Error("initializing", err)
+		slog.Error("initializing", "err", err.Error())
 		return
 	}
 	defer terminate()
 
 	ss, err := glgl.ParseCombined(strings.NewReader(compute))
 	if err != nil {
-		slog.Error("parsing", err)
+		slog.Error("parsing", "err", err.Error())
 		return
 	}
 	prog, err := glgl.CompileProgram(ss)
 	if err != nil {
-		slog.Error("creating program", err)
+		slog.Error("creating program", "err", err.Error())
 		return
 	}
 	prog.Bind()
 	err = prog.SetUniform1f("u_adder\x00", addThis)
 	if err != nil {
-		slog.Error("setting uniform", err)
+		slog.Error("setting uniform", "err", err.Error())
 		return
 	}
 
@@ -77,20 +78,20 @@ func main() {
 	}
 	tex, err := glgl.NewTextureFromImage(cfg, dst)
 	if err != nil {
-		slog.Error("creating texture", err)
+		slog.Error("creating texture", "err", err.Error())
 		return
 	}
 
 	// Dispatch and wait for compute to finish.
 	err = prog.RunCompute(width, height, 1)
 	if err != nil {
-		slog.Error("running compute shader", err)
+		slog.Error("running compute shader", "err", err.Error())
 		return
 	}
 
 	err = glgl.GetImage(dst, tex, cfg)
 	if err != nil {
-		slog.Error("acquiring results from GPU", err)
+		slog.Error("acquiring results from GPU", "err", err.Error())
 		return
 	}
 	fmt.Println(dst)

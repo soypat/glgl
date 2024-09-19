@@ -3,8 +3,10 @@
 package glgl
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"strconv"
 	"strings"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"golang.org/x/exp/constraints"
-	"golang.org/x/exp/slog"
 )
 
 // Version returns the running OpenGL version as a string.
@@ -67,7 +68,7 @@ func EnableDebugOutput(log *slog.Logger) {
 		default:
 			level = slog.LevelInfo
 		}
-		log.LogAttrs(level, message, attrs...)
+		log.LogAttrs(context.Background(), level, message, attrs...)
 	}, nil)
 }
 

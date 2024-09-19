@@ -5,9 +5,10 @@ package glgl
 import (
 	"errors"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
-	"golang.org/x/exp/slog"
 )
 
 type WindowConfig struct {

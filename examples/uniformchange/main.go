@@ -9,10 +9,11 @@ import (
 	"time"
 	"unsafe"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/soypat/glgl/v4.6-core/glgl"
-	"golang.org/x/exp/slog"
 )
 
 // Very basic index buffer example.
@@ -49,7 +50,7 @@ func main() {
 		Height: 800,
 	})
 	if err != nil {
-		slog.Error("glfw or gl init failed", err)
+		slog.Error("glfw or gl init failed", "err", err.Error())
 		return
 	}
 	defer terminate()
@@ -58,12 +59,12 @@ func main() {
 	// Parse and compile source code.
 	source, err := glgl.ParseCombined(strings.NewReader(shader))
 	if err != nil {
-		slog.Error("parse program failed", err)
+		slog.Error("parse program failed", "err", err.Error())
 		return
 	}
 	prog, err := glgl.CompileProgram(source)
 	if err != nil {
-		slog.Error("compile program failed", err)
+		slog.Error("compile program failed", "err", err.Error())
 		return
 	}
 	prog.Bind()
@@ -71,7 +72,7 @@ func main() {
 
 	err = prog.BindFrag("outputColor\x00")
 	if err != nil {
-		slog.Error("program bind frag fail", err)
+		slog.Error("program bind frag fail", "err", err.Error())
 		return
 	}
 	// Configure the Vertex Array Object.
@@ -80,7 +81,7 @@ func main() {
 	// Create the Position Buffer Object.
 	vbo, err := glgl.NewVertexBuffer(glgl.StaticDraw, positions)
 	if err != nil {
-		slog.Error("creating positions vertex buffer", err)
+		slog.Error("creating positions vertex buffer", "err", err.Error())
 		return
 	}
 	err = vao.AddAttribute(vbo, glgl.AttribLayout{
@@ -91,21 +92,21 @@ func main() {
 		Stride:  2 * 4, // 2 floats, each 4 bytes wide.
 	})
 	if err != nil {
-		slog.Error("adding attribute vert", err)
+		slog.Error("adding attribute vert", "err", err.Error())
 		return
 	}
 
 	// Create Index Buffer Object.
 	_, err = glgl.NewIndexBuffer(indices)
 	if err != nil {
-		slog.Error("creating index buffer", err)
+		slog.Error("creating index buffer", "err", err.Error())
 		return
 	}
 
 	// Set uniform variable `u_color` in source code.
 	err = prog.SetUniformName4f("u_color\x00", 0.2, 0.3, 0.8, 1)
 	if err != nil {
-		slog.Error("creating index buffer", err)
+		slog.Error("creating index buffer", "err", err.Error())
 		return
 	}
 	for !window.ShouldClose() {

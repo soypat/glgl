@@ -9,10 +9,11 @@ import (
 	"time"
 	"unsafe"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/soypat/glgl/v4.6-core/glgl"
-	"golang.org/x/exp/slog"
 )
 
 func init() {
@@ -72,14 +73,14 @@ void main() {
 	// Separate vertex and fragment shaders from source code.
 	source, err := glgl.ParseCombined(strings.NewReader(shader))
 	if err != nil {
-		slog.Error("parse combined source fail", err)
+		slog.Error("parse combined source fail", "err", err.Error())
 		return
 	}
 
 	// Configure the vertex and fragment shaders
 	program, err := glgl.CompileProgram(source)
 	if err != nil {
-		slog.Error("compile fail", err)
+		slog.Error("compile fail", "err", err.Error())
 		return
 	}
 	defer program.Delete()
@@ -87,7 +88,7 @@ void main() {
 
 	err = program.BindFrag("outputColor\x00")
 	if err != nil {
-		slog.Error("program bind frag fail", err)
+		slog.Error("program bind frag fail", "err", err.Error())
 		return
 	}
 	// Configure the Vertex Array Object.
@@ -96,7 +97,7 @@ void main() {
 	// Create the Position Buffer Object.
 	vbo, err := glgl.NewVertexBuffer(glgl.StaticDraw, positions)
 	if err != nil {
-		slog.Error("creating positions vertex buffer", err)
+		slog.Error("creating positions vertex buffer", "err", err.Error())
 		return
 	}
 	err = vao.AddAttribute(vbo, glgl.AttribLayout{
@@ -107,21 +108,21 @@ void main() {
 		Stride:  2 * 4, // 2 floats, each 4 bytes wide.
 	})
 	if err != nil {
-		slog.Error("adding attribute vert", err)
+		slog.Error("adding attribute vert", "err", err.Error())
 		return
 	}
 
 	// Create Index Buffer Object.
 	_, err = glgl.NewIndexBuffer(indices)
 	if err != nil {
-		slog.Error("creating index buffer", err)
+		slog.Error("creating index buffer", "err", err.Error())
 		return
 	}
 
 	// Set uniform variable `u_color` in source code.
 	err = program.SetUniformName4f("u_color\x00", 0.2, 0.3, 0.8, 1)
 	if err != nil {
-		slog.Error("creating index buffer", err)
+		slog.Error("creating index buffer", "err", err.Error())
 		return
 	}
 	for !window.ShouldClose() {

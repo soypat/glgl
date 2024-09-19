@@ -11,9 +11,10 @@ import (
 	"runtime"
 	"strings"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/soypat/glgl/v4.6-core/glgl"
-	"golang.org/x/exp/slog"
 )
 
 const addThis = 20
@@ -40,25 +41,25 @@ func main() {
 		Height:  1,
 	})
 	if err != nil {
-		slog.Error("initializing", err)
+		slog.Error("initializing", "err", err.Error())
 		return
 	}
 	defer terminate()
 
 	ss, err := glgl.ParseCombined(strings.NewReader(compute))
 	if err != nil {
-		slog.Error("parsing", err)
+		slog.Error("parsing", "err", err.Error())
 		return
 	}
 	prog, err := glgl.CompileProgram(ss)
 	if err != nil {
-		slog.Error("creating program", err)
+		slog.Error("creating program", "err", err.Error())
 		return
 	}
 	prog.Bind()
 	err = prog.SetUniform1f("u_adder\x00", addThis)
 	if err != nil {
-		slog.Error("setting uniform", err)
+		slog.Error("setting uniform", "err", err.Error())
 		return
 	}
 	// Unit must match the `binding` of the texture in the compute shader.
@@ -80,7 +81,7 @@ func main() {
 	}
 	_, err = glgl.NewTextureFromImage(inputCfg, inputArray)
 	if err != nil {
-		slog.Error("creating input texture", err)
+		slog.Error("creating input texture", "err", err.Error())
 		return
 	}
 
@@ -99,20 +100,20 @@ func main() {
 	}
 	outputTex, err := glgl.NewTextureFromImage(outputCfg, outputArray)
 	if err != nil {
-		slog.Error("creating output texture", err)
+		slog.Error("creating output texture", "err", err.Error())
 		return
 	}
 
 	// Dispatch and wait for compute to finish.
 	err = prog.RunCompute(len(inputArray), 1, 1)
 	if err != nil {
-		slog.Error("running compute shader", err)
+		slog.Error("running compute shader", "err", err.Error())
 		return
 	}
 
 	err = glgl.GetImage(outputArray, outputTex, outputCfg)
 	if err != nil {
-		slog.Error("acquiring results from GPU", err)
+		slog.Error("acquiring results from GPU", "err", err.Error())
 		return
 	}
 	fmt.Println("input:", inputArray, "output:", outputArray)

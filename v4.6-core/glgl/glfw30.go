@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.0/glfw"
-	"golang.org/x/exp/slog"
 )
 
 func InitWithCurrentWindow30(cfg WindowConfig) (*glfw.Window, func(), error) {
