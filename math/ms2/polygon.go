@@ -231,7 +231,7 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 	V12 = Scale(1/norm12, V12)
 
 	// theta is opening angle between two vectors going from smoothed corner p1 to p0 and p2.
-	theta := math.Acos(Dot(V10, V12) / (norm10 * norm12))
+	theta := math.Acos(Dot(V10, V12)) // Since normalized no need to divide further.
 	if math.Abs(theta) < tol {
 		return dst, errSmallSmoothAngle
 	} else if math.Abs(theta-math.Pi) < tol {

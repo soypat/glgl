@@ -139,6 +139,4 @@ void main() {
 			window.SetShouldClose(true)
 		}
 	}
-	// Output:
-	// None.
 }
