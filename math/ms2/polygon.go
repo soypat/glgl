@@ -7,6 +7,8 @@ import (
 	math "github.com/chewxy/math32"
 )
 
+const arcTol = 5e-1
+
 // PolygonBuilder facilitates polygon construction with arcs, smoothing and chamfers
 // with the [PolygonControlPoint] type.
 type PolygonBuilder struct {
@@ -176,7 +178,7 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, error) {
 	V12 := Sub(p2, p1)
 	chordCenter := Add(p1, Scale(0.5, V12))
 	chordLen := Norm(V12) // Chord length.
-	if chordLen > 2*rabs {
+	if math.Abs(chordLen-2*rabs) > arcTol {
 		return Vec{}, 0, errSmallArcRadius
 	}
 	// Theta is the opening angle from the center of the arc circle
@@ -209,11 +211,11 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, error) {
 var (
 	errLargeSmoothRadius = errors.New("smoothing radius too large")
 	errSmallArcRadius    = errors.New("arc radius too small")
-	errSmallSmoothAngle  = errors.New("badly conditioned smoothing")
+	errBadSmooth         = errors.New("badly conditioned smoothing")
 )
 
 func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([]Vec, error) {
-	const tol = 5e-1
+
 	if facets <= 1 {
 		return dst, nil // Chamfer case facets==1.
 	}
@@ -223,8 +225,10 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 	norm10 := Norm(V10)
 	V12 := Sub(p2, p1)
 	norm12 := Norm(V12)
-	if norm10 < r || norm12 < r {
+	if math.Abs(norm10-r) > arcTol || math.Abs(norm12-r) > arcTol {
 		return dst, errLargeSmoothRadius
+	} else if norm10 == 0 || norm12 == 0 {
+		return dst, errBadSmooth
 	}
 	// Normalize vectors.
 	V10 = Scale(1/norm10, V10)
@@ -232,10 +236,10 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 
 	// theta is opening angle between two vectors going from smoothed corner p1 to p0 and p2.
 	theta := math.Acos(Dot(V10, V12)) // Since normalized no need to divide further.
-	if math.Abs(theta) < tol {
-		return dst, errSmallSmoothAngle
-	} else if math.Abs(theta-math.Pi) < tol {
-		return dst, errSmallSmoothAngle
+	if math.Abs(theta) < arcTol {
+		return dst, errBadSmooth
+	} else if math.Abs(theta-math.Pi) < arcTol {
+		return dst, errBadSmooth
 	}
 
 	sint, cost := math.Sincos(0.5 * theta)
@@ -243,7 +247,7 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 	// h is distance to tangent points on arc.
 	start := Add(p1, Scale(h, V10))
 	end := Add(p1, Scale(h, V12))
-	if !EqualElem(p0, start, tol*norm10) {
+	if !EqualElem(p0, start, arcTol*norm10) {
 		dst = append(dst, start) // Cap smooth if p0 point not near radius start.
 	}
 
@@ -254,7 +258,7 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 	arcAngle := math.Pi - theta
 	arcAngle = applyOrientation(arcAngle, start, p1, end)
 	dst = appendArcWithCenter(dst, start, arcCenter, arcAngle, facets)
-	if !EqualElem(p2, end, tol*norm12) {
+	if !EqualElem(p2, end, arcTol*norm12) {
 		dst = append(dst, end) // Cap smooth if p2 point not near radius end.
 	}
 	return dst, nil
