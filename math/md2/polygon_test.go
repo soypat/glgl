@@ -87,3 +87,15 @@ func TestPolygon_circle_arcing(t *testing.T) {
 		}
 	}
 }
+
+func TestSmooth_bug(t *testing.T) {
+	var poly PolygonBuilder
+	poly.AddXY(0.8, 0.6)
+	poly.AddXY(0.4, 0.6).Smooth(0.2, 5)
+	poly.AddXY(0.3, 0)
+	vecs, err := poly.AppendVecs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(vecs)
+}

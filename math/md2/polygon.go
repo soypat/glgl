@@ -229,7 +229,7 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float64, facets int32) ([
 	norm10 := Norm(V10)
 	V12 := Sub(p2, p1)
 	norm12 := Norm(V12)
-	if math.Abs(norm10-r) > arcTol || math.Abs(norm12-r) > arcTol {
+	if r-norm10 > arcTol || r-norm12 > arcTol {
 		return dst, errLargeSmoothRadius
 	} else if norm10 == 0 || norm12 == 0 {
 		return dst, errBadSmooth
@@ -247,10 +247,10 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float64, facets int32) ([
 	}
 
 	sint, cost := math.Sincos(0.5 * theta)
-	h := r / (sint / cost)
-	// h is distance to tangent points on arc.
-	start := Add(p1, Scale(h, V10))
-	end := Add(p1, Scale(h, V12))
+	d := r / (sint / cost)
+	// d is distance from p1 to tangent points on arc.
+	start := Add(p1, Scale(d, V10))
+	end := Add(p1, Scale(d, V12))
 	if !EqualElem(p0, start, arcTol*norm10) {
 		dst = append(dst, start) // Cap smooth if p0 point not near radius start.
 	}
