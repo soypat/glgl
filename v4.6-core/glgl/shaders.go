@@ -10,24 +10,6 @@ import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 )
 
-type Program struct {
-	rid uint32
-}
-
-func CompileProgram(ss ShaderSource) (prog Program, err error) {
-	if ss.Compute != "" && (ss.Fragment != "" || ss.Vertex != "") {
-		return Program{}, errors.New("cannot compile compute and frag/vertex together")
-	}
-	if ss.Compute == "" && ss.Fragment == "" && ss.Vertex == "" {
-		if ss.Include != "" {
-			return Program{}, errors.New("only found `#shader include` part of program")
-		}
-		return Program{}, errors.New("empty program")
-	}
-	prog, err = compileSources(ss)
-	return prog, err
-}
-
 // RunCompute runs a the program's compute shader with defined work sizes and waits for it to finish.
 func (p Program) RunCompute(workSizeX, workSizeY, workSizeZ int) error {
 	gl.DispatchCompute(uint32(workSizeX), uint32(workSizeY), uint32(workSizeZ))

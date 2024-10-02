@@ -5,24 +5,21 @@ package glgl
 import (
 	"errors"
 
-	"log/slog"
-
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 )
 
-type WindowConfig struct {
-	Title        string
-	NotResizable bool
-	Version      [2]int
-	// glfw.OpenGLCoreProfile
-	OpenGLProfile int
-	ForwardCompat bool
-	Width, Height int
-	DebugLog      *slog.Logger
+type Window struct {
+	*glfw.Window
 }
 
-func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, func(), error) {
+const (
+	ProfileAny    int = glfw.OpenGLAnyProfile
+	ProfileCore   int = glfw.OpenGLCoreProfile
+	ProfileCompat int = glfw.OpenGLCompatProfile
+)
+
+func InitWithCurrentWindow33(cfg WindowConfig) (*Window, func(), error) {
 	if cfg.DebugLog != nil {
 		return nil, nil, errors.New("DebugLog not supported in GLFW version 3.3")
 	}
@@ -47,10 +44,10 @@ func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, func(), error) {
 	window.MakeContextCurrent()
 	if err := gl.Init(); err != nil {
 		glfw.Terminate()
-		return window, nil, err
+		return &Window{window}, nil, err
 	}
 	ClearErrors()
-	return window, glfw.Terminate, nil
+	return &Window{window}, glfw.Terminate, nil
 }
 
 func b2i(b bool) int {

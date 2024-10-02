@@ -64,7 +64,7 @@ void main() {
 		Height:        800,
 		NotResizable:  true,
 		Version:       [2]int{4, 6},
-		OpenGLProfile: glfw.OpenGLCoreProfile,
+		OpenGLProfile: glgl.ProfileCore,
 		ForwardCompat: true,
 	})
 	defer terminate()

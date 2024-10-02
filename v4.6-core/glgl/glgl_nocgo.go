@@ -4,12 +4,37 @@ package glgl
 
 import (
 	"errors"
-
-	"github.com/go-gl/glfw/v3.0/glfw"
+	"log/slog"
 )
 
-var errNoCgo = errors.New("glgl needs Cgo")
+type Window struct{}
 
-func InitWithCurrentWindow33(cfg WindowConfig) (*glfw.Window, func(), error) {
+var errNoCgo = errors.New("glgl needs cgo")
+
+func InitWithCurrentWindow33(cfg WindowConfig) (*Window, func(), error) {
 	return nil, nil, errNoCgo
 }
+
+// MaxComputeInvoc returns maximum number of invocations/warps per workgroup on the local GPU. The GL context must be actual.
+func MaxComputeInvocations() int {
+	return 32
+}
+
+func Version() string { return errNoCgo.Error() }
+
+func EnableDebugOutput(log *slog.Logger) {}
+
+func compileSources(ss ShaderSource) (program Program, err error) {
+	return Program{}, errNoCgo
+}
+
+func Err() error { return errNoCgo }
+
+func (p Program) Bind()   {}
+func (p Program) Unbind() {}
+
+const (
+	ProfileAny int = iota
+	ProfileCore
+	ProfileCompat
+)
