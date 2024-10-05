@@ -33,7 +33,15 @@ var (
 	ErrStringNotNullTerminated = errors.New("string not null terminated")
 )
 
-// MaxComputeInvoc returns maximum number of invocations/warps per workgroup on the local GPU. The GL context must be actual.
+// MaxComputeInvocations returns the maximum total number of invocations (threads)
+// in a single compute work group. This value represents the upper limit for the product
+// of the local work group sizes in the X, Y, and Z dimensions, i.e.,
+// local_size_x * local_size_y * local_size_z.
+//
+// This value is used to ensure that the total number of threads within a work group
+// does not exceed what the hardware and OpenGL implementation can handle.
+//
+// The OpenGL context must be current when calling this function.
 func MaxComputeInvocations() int {
 	var p runtime.Pinner
 	var invoc int32
@@ -41,6 +49,43 @@ func MaxComputeInvocations() int {
 	defer p.Unpin()
 	gl.GetIntegerv(gl.MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &invoc)
 	return int(invoc)
+}
+
+// MaxComputeWorkGroupCount returns the maximum number of work groups that can be
+// dispatched in each dimension (X, Y, Z) when invoking a compute shader using
+// [Program.RunCompute] (glDispatchCompute).
+//
+// The OpenGL context must be current when calling this function.
+func MaxComputeWorkGroupCount() (Wcx, Wcy, Wcz int) {
+	var wcx, wcy, wcz int32
+	var p runtime.Pinner
+	p.Pin(&wcx)
+	p.Pin(&wcy)
+	p.Pin(&wcz)
+	defer p.Unpin()
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 0, &wcx)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 1, &wcy)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_COUNT, 2, &wcz)
+	return int(wcx), int(wcy), int(wcz)
+}
+
+// MaxComputeWorkGroupSize returns the maximum size of a work group that can be
+// used in each dimension (X, Y, Z) within a compute shader. This corresponds to
+// the limits for the local work group sizes specified in the shader using the
+// layout qualifiers, such as layout(local_size_x = X, local_size_y = Y, local_size_z = Z) in;
+//
+// The OpenGL context must be current when calling this function.
+func MaxComputeWorkGroupSize() (Wsx, Wsy, Wsz int) {
+	var wsx, wsy, wsz int32
+	var p runtime.Pinner
+	p.Pin(&wsx)
+	p.Pin(&wsy)
+	p.Pin(&wsz)
+	defer p.Unpin()
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_SIZE, 0, &wsx)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_SIZE, 1, &wsy)
+	gl.GetIntegeri_v(gl.MAX_COMPUTE_WORK_GROUP_SIZE, 2, &wsz)
+	return int(wsx), int(wsy), int(wsz)
 }
 
 // EnableDebugOutput writes debug output to log via glDebugMessageCallback.

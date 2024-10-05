@@ -9,10 +9,11 @@ type WindowConfig struct {
 	Title        string
 	NotResizable bool
 	Version      [2]int
-	// glfw.OpenGLCoreProfile
-	OpenGLProfile int
+
+	OpenGLProfile int // Use [ProfileCore], [ProfileCompat], [ProfileAny].
 	ForwardCompat bool
 	Width, Height int
+	HideWindow    bool // Set glfw.Visible to false
 	DebugLog      *slog.Logger
 }
 

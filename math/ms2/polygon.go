@@ -2,10 +2,19 @@ package ms2
 
 import (
 	"errors"
-	"fmt"
+	"strconv"
 
 	math "github.com/chewxy/math32"
 )
+
+type cpAtIdxErr struct {
+	idx int
+	msg error
+}
+
+func (cperr *cpAtIdxErr) Error() string {
+	return "PolygonBuilder control_point[" + strconv.Itoa(cperr.idx) + "]: " + cperr.msg.Error()
+}
 
 const arcTol = 5e-1
 
@@ -98,6 +107,9 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 	prev := p.verts[len(p.verts)-1]
 	for i := range p.verts {
 		current := p.verts[i]
+		if i != 0 && prev == current {
+			return buf, &cpAtIdxErr{idx: i, msg: errCPEqualToPrev}
+		}
 		if current.isArc() {
 			buf, err = appendArc2points(buf, prev.v, current.v, current.radius, -current.facets)
 			buf = append(buf, current.v)
@@ -108,7 +120,7 @@ func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
 			buf = append(buf, current.v)
 		}
 		if err != nil {
-			return buf, fmt.Errorf("control point %d: %w", i, err)
+			return buf, &cpAtIdxErr{idx: i, msg: err}
 		}
 		prev = current
 	}
@@ -177,8 +189,9 @@ func arcCenterFrom2points(p1, p2 Vec, r float32) (Vec, float32, error) {
 	rabs := math.Abs(r)
 	V12 := Sub(p2, p1)
 	chordCenter := Add(p1, Scale(0.5, V12))
-	chordLen := Norm(V12) // Chord length.
-	if math.Abs(chordLen-2*rabs) > arcTol {
+	chordLen := Norm(V12)   // Chord length.
+	maxChordLen := 2 * rabs //
+	if chordLen-maxChordLen > arcTol {
 		return Vec{}, 0, errSmallArcRadius
 	}
 	// Theta is the opening angle from the center of the arc circle
@@ -212,6 +225,7 @@ var (
 	errLargeSmoothRadius = errors.New("smoothing radius too large")
 	errSmallArcRadius    = errors.New("arc radius too small")
 	errBadSmooth         = errors.New("badly conditioned smoothing")
+	errCPEqualToPrev     = errors.New("equal to previous control point")
 )
 
 func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([]Vec, error) {

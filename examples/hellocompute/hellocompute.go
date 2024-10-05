@@ -40,7 +40,9 @@ func main() {
 		return
 	}
 	defer terminate()
-
+	fmt.Println(glgl.MaxComputeWorkGroupCount())
+	fmt.Println(glgl.MaxComputeWorkGroupSize())
+	return
 	ss, err := glgl.ParseCombined(strings.NewReader(compute))
 	if err != nil {
 		slog.Error("parsing", "err", err.Error())

@@ -37,10 +37,14 @@ func InitWithCurrentWindow33(cfg WindowConfig) (*Window, func(), error) {
 	}
 	glfw.WindowHint(glfw.OpenGLProfile, zdefault(cfg.OpenGLProfile, glfw.OpenGLCoreProfile))
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, b2i(cfg.ForwardCompat))
+	if cfg.HideWindow {
+		glfw.WindowHint(glfw.Visible, glfw.False)
+	}
 	window, err := glfw.CreateWindow(cfg.Width, cfg.Height, cfg.Title, nil, nil)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	window.MakeContextCurrent()
 	if err := gl.Init(); err != nil {
 		glfw.Terminate()

@@ -17,7 +17,15 @@ func InitWithCurrentWindow33(cfg WindowConfig) (*Window, func(), error) {
 
 // MaxComputeInvoc returns maximum number of invocations/warps per workgroup on the local GPU. The GL context must be actual.
 func MaxComputeInvocations() int {
-	return 32
+	return -1
+}
+
+func MaxComputeWorkGroupCount() (Wcx, Wcy, Wcz int) {
+	return -1, -1, -1
+}
+
+func MaxComputeWorkGroupSize() (Wsx, Wsy, Wsz int) {
+	return -1, -1, -1
 }
 
 func Version() string { return errNoCgo.Error() }
