@@ -164,3 +164,24 @@ type TextureImgConfig struct {
 	// TextureUnit starts at 0 and goes all the way up to MaxTextureSlots().
 	TextureUnit int
 }
+
+// ShaderStorageBuffer is a generic buffer object. Commonly referred to as SSBO.
+type ShaderStorageBuffer struct {
+	id    uint32
+	usage AccessUsage
+	sz    int
+}
+
+type ShaderStorageBufferConfig struct {
+	Usage AccessUsage
+	// Base is the binding point for the buffer. To access the buffer within a shader ithe layout parameter `binding`
+	// specifies the base of the buffer:
+	// 	layout(std430, binding = 0) buffer ImageBuffer {
+	// 		uint pixelData[];
+	// 	};
+	Base uint32
+	// MemSize specifies the size in bytes of memory the ShaderStorageBuffer should take up.
+	// When creating buffers with [NewShaderStorageBuffer] MemSize will decide the minimum size the buffer have,
+	// if the data slice is nil.
+	MemSize uint32
+}

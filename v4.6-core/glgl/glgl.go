@@ -118,12 +118,67 @@ func EnableDebugOutput(log *slog.Logger) {
 	}, nil)
 }
 
-// func debug() {
-// 	const bufsize = 32 * 1024
-// 	var buf [bufsize]byte
-// 	gl.SOURCE
-// 	gl.GetDebugMessageLog(1024, bufsize)
-// }
+// NewShaderStorageBuffer creates a new SSBO and binds it.
+func NewShaderStorageBuffer[T any](data []T, cfg ShaderStorageBufferConfig) (ssbo ShaderStorageBuffer, err error) {
+	var z T
+	if data == nil && cfg.MemSize <= 0 {
+		return ssbo, errors.New("undefined SSBO size")
+	} else if data != nil && cfg.MemSize != 0 {
+		return ssbo, errors.New("SSBO MemSize used only when data is nil")
+	} else if unsafe.Sizeof(z)%uintptr(cfg.MemSize) != 0 {
+		return ssbo, errors.New("SSBO MemSize should be multiple of data type length")
+	}
+
+	var p runtime.Pinner
+	p.Pin(&ssbo.id)
+	gl.GenBuffers(1, &ssbo.id)
+	p.Unpin()
+	ssbo.sz = int(unsafe.Sizeof(z)) * len(data)
+	ssbo.usage = cfg.Usage
+	ptr := unsafe.Pointer(&data[0])
+
+	ssbo.Bind()
+	gl.BufferData(gl.SHADER_STORAGE_BUFFER, ssbo.sz, ptr, uint32(cfg.Usage))
+	gl.BindBufferBase(gl.SHADER_STORAGE_BUFFER, cfg.Base, ssbo.id)
+	return ssbo, Err()
+}
+
+func (ssbo ShaderStorageBuffer) Bind() {
+	gl.BindBuffer(gl.SHADER_STORAGE_BUFFER, ssbo.id)
+}
+
+func (ssbo ShaderStorageBuffer) Delete() {
+	var p runtime.Pinner
+	p.Pin(&ssbo.id)
+	gl.DeleteBuffers(1, &ssbo.id)
+	p.Unpin()
+}
+
+// CopyFromShaderStorageBuffer copies data from a readable SSBO on the GPU to the destination buffer.
+func CopyFromShaderStorageBuffer[T any](dst []T, ssbo ShaderStorageBuffer) error {
+	dstSize := elemSize[T]() * len(dst)
+	if ssbo.usage != ReadOnly && ssbo.usage != ReadOrWrite {
+		return errors.New("attempted to read from non-readable SSBO")
+	} else if ssbo.sz < dstSize {
+		return errors.New("attempted to read more bytes than allocated for SSBO")
+	} else if len(dst) == 0 {
+		return errors.New("zero length or nil buffer")
+	}
+	ssbo.Bind()
+	ptr := gl.MapBufferRange(gl.SHADER_STORAGE_BUFFER, 0, dstSize, gl.MAP_READ_BIT)
+	if ptr == nil {
+		err := Err()
+		if err != nil {
+			return err
+		}
+		return errors.New("failed to map buffer")
+	}
+	defer gl.UnmapBuffer(gl.SHADER_STORAGE_BUFFER)
+	gpuBytes := unsafe.Slice((*byte)(ptr), dstSize)
+	bufBytes := unsafe.Slice((*byte)(unsafe.Pointer(&dst[0])), dstSize)
+	copy(bufBytes, gpuBytes)
+	return Err()
+}
 
 // NewVAO creates a vertex array object and binds it to current context.
 func NewVAO() VertexArray {
@@ -470,4 +525,9 @@ func zdefault[T constraints.Integer](got, Default T) T {
 		return Default
 	}
 	return got
+}
+
+func elemSize[T any]() int {
+	var z T
+	return int(unsafe.Sizeof(z))
 }
