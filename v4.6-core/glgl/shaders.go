@@ -43,7 +43,7 @@ func (p Program) Delete() {
 	gl.DeleteProgram(p.rid)
 }
 
-func (p Program) uniformLocation(name string) (int32, error) {
+func (p Program) UniformLocation(name string) (int32, error) {
 	if !strings.HasSuffix(name, "\x00") {
 		return -2, ErrStringNotNullTerminated
 	}
@@ -54,22 +54,52 @@ func (p Program) uniformLocation(name string) (int32, error) {
 	return loc, nil
 }
 
-func (p Program) SetUniformName4f(name string, v0, v1, v2, v3 float32) error {
-	loc, err := p.uniformLocation(name)
-	if err != nil {
-		return err
+func (p Program) SetUniformf(loc int32, floats ...float32) error {
+	switch len(floats) {
+	case 1:
+		gl.Uniform1f(loc, floats[0])
+	case 2:
+		gl.Uniform2f(loc, floats[0], floats[1])
+	case 3:
+		gl.Uniform3f(loc, floats[0], floats[1], floats[2])
+	case 4:
+		gl.Uniform4f(loc, floats[0], floats[1], floats[2], floats[3])
+	default:
+		return errors.New("bad number of floats to SetUniformsf")
 	}
-	gl.Uniform4f(loc, v0, v1, v2, v3)
-	return nil
+	return Err()
 }
 
-func (p Program) SetUniform1f(name string, v float32) error {
-	loc, err := p.uniformLocation(name)
-	if err != nil {
-		return err
+func (p Program) SetUniformi(loc int32, ints ...int32) error {
+	switch len(ints) {
+	case 1:
+		gl.Uniform1i(loc, ints[0])
+	case 2:
+		gl.Uniform2i(loc, ints[0], ints[1])
+	case 3:
+		gl.Uniform3i(loc, ints[0], ints[1], ints[2])
+	case 4:
+		gl.Uniform4i(loc, ints[0], ints[1], ints[2], ints[3])
+	default:
+		return errors.New("bad number of ints to SetUniformsi")
 	}
-	gl.Uniform1f(loc, v)
-	return nil
+	return Err()
+}
+
+func (p Program) SetUniformui(loc int32, ints ...uint32) error {
+	switch len(ints) {
+	case 1:
+		gl.Uniform1ui(loc, ints[0])
+	case 2:
+		gl.Uniform2ui(loc, ints[0], ints[1])
+	case 3:
+		gl.Uniform3ui(loc, ints[0], ints[1], ints[2])
+	case 4:
+		gl.Uniform4ui(loc, ints[0], ints[1], ints[2], ints[3])
+	default:
+		return errors.New("bad number of uints to SetUniformsui")
+	}
+	return Err()
 }
 
 // CompileBasic compiles two OpenGL vertex and fragment shaders
