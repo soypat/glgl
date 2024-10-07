@@ -13,6 +13,15 @@ type Mat3 struct {
 	x00, x01, x02 float64
 	x10, x11, x12 float64
 	x20, x21, x22 float64
+	// Padding to align to 16 bytes.
+	_, _, _ float64
+}
+
+func mat3(x00, x01, x02, x10, x11, x12, x20, x21, x22 float64) Mat3 {
+	return Mat3{
+		x00, x01, x02,
+		x10, x11, x12,
+		x20, x21, x22, 0, 0, 0} // padding excess
 }
 
 // NewMat3 instantiates a new matrix from the first 9 floats, row major order. If v is of insufficient length NewMat3 panics.
@@ -26,10 +35,10 @@ func NewMat3(v []float64) (m Mat3) {
 
 // IdentityMat3 returns the 3x3 identity matrix.
 func IdentityMat3() Mat3 {
-	return Mat3{
+	return mat3(
 		1, 0, 0,
 		0, 1, 0,
-		0, 0, 1}
+		0, 0, 1)
 }
 
 // Skew returns the 3×3 skew symmetric matrix (right hand system) of v.
@@ -38,10 +47,10 @@ func IdentityMat3() Mat3 {
 //	Skew({x,y,z}) = ⎢ z  0 -x⎥
 //	                ⎣-y  x  0⎦
 func Skew(v Vec) Mat3 {
-	return Mat3{
+	return mat3(
 		0, -v.Z, v.Y,
 		v.Z, 0, -v.X,
-		-v.Y, v.X, 0}
+		-v.Y, v.X, 0)
 }
 
 // EqualMat3 tests the equality of 3x3 matrices.
@@ -97,11 +106,11 @@ func AddMat3(a, b Mat3) Mat3 {
 //
 //	m = v1 * v2ᵀ
 func Prod(v1, v2t Vec) Mat3 {
-	return Mat3{
-		v1.X * v2t.X, v1.X * v2t.Y, v1.X * v2t.Z,
-		v1.Y * v2t.X, v1.Y * v2t.Y, v1.Y * v2t.Z,
-		v1.Z * v2t.X, v1.Z * v2t.Y, v1.Z * v2t.Z,
-	}
+	return mat3(
+		v1.X*v2t.X, v1.X*v2t.Y, v1.X*v2t.Z,
+		v1.Y*v2t.X, v1.Y*v2t.Y, v1.Y*v2t.Z,
+		v1.Z*v2t.X, v1.Z*v2t.Y, v1.Z*v2t.Z,
+	)
 }
 
 // MulMatVec performs matrix multiplication on v:
@@ -151,7 +160,7 @@ func (a Mat3) Inverse() Mat3 {
 	m := Mat3{}
 	det := a.Determinant()
 	if det == 0 {
-		return Mat3{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}
+		return mat3(math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN())
 	}
 	d := 1.0 / det
 	m.x00 = (a.x11*a.x22 - a.x12*a.x21) * d
@@ -229,7 +238,7 @@ func (m Mat3) expand() Mat4 {
 // to a 3×n matrix of column vectors. If the receiver is not a unit
 // quaternion, the returned matrix will not be a pure rotation.
 func RotationMat3(rotationUnit Quat) Mat3 {
-	w, i, j, k := rotationUnit.W, rotationUnit.V.X, rotationUnit.V.Y, rotationUnit.V.Z
+	w, i, j, k := rotationUnit.W, rotationUnit.I, rotationUnit.J, rotationUnit.K
 	ii := 2 * i * i
 	jj := 2 * j * j
 	kk := 2 * k * k
@@ -239,8 +248,8 @@ func RotationMat3(rotationUnit Quat) Mat3 {
 	ij := 2 * i * j
 	jk := 2 * j * k
 	ki := 2 * k * i
-	return Mat3{
-		1 - (jj + kk), ij - wk, ki + wj,
-		ij + wk, 1 - (ii + kk), jk - wi,
-		ki - wj, jk + wi, 1 - (ii + jj)}
+	return mat3(
+		1-(jj+kk), ij-wk, ki+wj,
+		ij+wk, 1-(ii+kk), jk-wi,
+		ki-wj, jk+wi, 1-(ii+jj))
 }

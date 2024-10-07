@@ -6,8 +6,10 @@ import (
 )
 
 // Vec is a 3D vector. It is composed of 3 float32 fields for x, y, and z values in that order.
+// Padding is added to reach 16 byte size for use with OpenGL with 1-to-1 mapping with vec3 and dvec3 types.
 type Vec struct {
 	X, Y, Z float32
+	_       float32 // Padding for comfortable use with OpenGL. std430 still not fully supported on modern GPUs.
 }
 
 // Max returns the maximum component of a.
@@ -76,7 +78,7 @@ func Cross(p, q Vec) Vec {
 	return Vec{
 		p.Y*q.Z - p.Z*q.Y,
 		p.Z*q.X - p.X*q.Z,
-		p.X*q.Y - p.Y*q.X,
+		p.X*q.Y - p.Y*q.X, 0,
 	}
 }
 

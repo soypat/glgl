@@ -13,7 +13,7 @@ import (
 const sizeofFloat = unsafe.Sizeof(float32(0))
 
 var (
-	_ = [1]byte{}[unsafe.Sizeof(Vec{})-3*sizeofFloat]  // Compile time check that Vec is 3 float32s long.
+	_ = [1]byte{}[unsafe.Sizeof(Vec{})-4*sizeofFloat]  // Compile time check that Vec is 3 float32s long.
 	_ = [1]byte{}[unsafe.Sizeof(Quat{})-4*sizeofFloat] // Compile time check that Quat is 4 float32s long.
 )
 
@@ -52,15 +52,20 @@ const (
 //	unsafe.Offsetof(q.V) // == 0
 type Quat struct {
 	// V contains I, J and K imaginary parts.
-	V Vec
-	W float32
+	I, J, K float32
+	W       float32
 }
 
-func init() {
-	const voffset = unsafe.Offsetof(Quat{}.V)
-	// assert
-	if voffset != 0 {
-		panic("offset guaranteed to be zero")
+// IJK returns I,J,K fields of q as a vector with set fields X,Y,Z, respectively.
+func (q Quat) IJK() Vec { return Vec{X: q.I, Y: q.J, Z: q.K} }
+
+// WithIJK replaces I, J and K fields of q with X,Y and Z fields of argument Vec ijk and returns the result.
+func (q Quat) WithIJK(ijk Vec) Quat {
+	return Quat{
+		W: q.W,
+		I: ijk.X,
+		J: ijk.Y,
+		K: ijk.Z,
 	}
 }
 
@@ -78,43 +83,75 @@ func QuatIdent() Quat {
 func RotationQuat(angle float32, axis Vec) Quat {
 	// angle = (float32(math.Pi) * angle) / 180.0
 	s, c := math.Sincos(0.5 * angle)
-	return Quat{W: c, V: Scale(s, axis)}
+	return Quat{
+		W: c,
+		I: axis.X * s,
+		J: axis.Y * s,
+		K: axis.Z * s,
+	}
 }
 
 // Add adds two quaternions. It's no more complicated than
 // adding their W and V components.
 func (q1 Quat) Add(q2 Quat) Quat {
-	return Quat{W: q1.W + q2.W, V: Add(q1.V, q2.V)}
+	return Quat{
+		W: q1.W + q2.W,
+		I: q1.I + q2.I,
+		J: q1.J + q2.J,
+		K: q1.K + q2.K,
+	}
 }
 
 // Sub subtracts two quaternions. It's no more complicated than
 // subtracting their W and V components.
 func (q1 Quat) Sub(q2 Quat) Quat {
-	return Quat{W: q1.W - q2.W, V: Sub(q1.V, q2.V)}
+	return Quat{
+		W: q1.W - q2.W,
+		I: q1.I - q2.I,
+		J: q1.J - q2.J,
+		K: q1.K - q2.K,
+	}
 }
 
 // Mul multiplies two quaternions. This can be seen as a rotation. Note that
 // Multiplication is NOT commutative, meaning q1.Mul(q2) does not necessarily
 // equal q2.Mul(q1).
 func (q1 Quat) Mul(q2 Quat) Quat {
-	m := Add(Cross(q1.V, q2.V), Scale(q1.W, q2.V))
-	return Quat{W: q1.W*q2.W - Dot(q1.V, q2.V), V: Add(m, Scale(q2.W, q1.V))}
+	v1 := q1.IJK()
+	v2 := q2.IJK()
+	m := Add(Cross(v1, v2), Scale(q1.W, v2))
+	return Quat{
+		W: q1.W*q2.W - Dot(v1, v2),
+		I: m.X + q2.W*v1.X,
+		J: m.Y + q2.W*v1.Y,
+		K: m.Z + q2.W*v1.Z,
+	}
 }
 
 // Scale every element of the quaternion by some constant factor.
 func (q1 Quat) Scale(c float32) Quat {
-	return Quat{W: q1.W * c, V: Vec{q1.V.X * c, q1.V.Y * c, q1.V.Z * c}}
+	return Quat{
+		W: q1.W * c,
+		I: q1.I * c,
+		J: q1.J * c,
+		K: q1.K * c,
+	}
 }
 
 // Conjugate returns the conjugate of a quaternion. Equivalent to
 // Quat{q1.W, q1.V.Mul(-1)}.
 func (q1 Quat) Conjugate() Quat {
-	return Quat{W: q1.W, V: Scale(-1, q1.V)}
+	return Quat{
+		W: q1.W,
+		I: -q1.I,
+		J: -q1.J,
+		K: -q1.K,
+	}
 }
 
 // Norm returns the euclidean length of the quaternion.
 func (q1 Quat) Norm() float32 {
-	return math.Sqrt(q1.W*q1.W + q1.V.X*q1.V.Y + q1.V.Y*q1.V.Y + q1.V.Z*q1.V.Z)
+	return math.Sqrt(q1.Dot(q1))
 }
 
 // Normalize the quaternion, returning its versor (unit quaternion).
@@ -133,7 +170,7 @@ func (q1 Quat) Unit() Quat {
 		length = math.Copysign(math.MaxFloat32, length)
 	}
 	inv := 1. / length
-	return Quat{W: q1.W * inv, V: Scale(inv, q1.V)}
+	return q1.Scale(inv)
 }
 
 // Inverse of a quaternion. The inverse is equivalent
@@ -156,12 +193,12 @@ func (q1 Quat) Inverse() Quat {
 // In practice, we hand-compute this in the general case and simplify
 // to save a few operations.
 func (q1 Quat) Rotate(v Vec) Vec {
-	cross := Cross(q1.V, v)
+	v1 := q1.IJK()
+	cross := Cross(v1, v)
 	// v + 2q_w * (q_v x v) + 2q_v x (q_v x v)
-	finalTerm := Cross(Scale(2, q1.V), cross)
+	finalTerm := Cross(Scale(2, v1), cross)
 	x := Add(Scale(2*q1.W, cross), finalTerm)
 	return Add(v, x)
-	// return v.Add(cross.Mul(2 * q1.W)).Add(q1.V.Mul(2).Cross(cross))
 }
 
 // Mat4 returns the homogeneous 3D rotation matrix corresponding to the
@@ -178,7 +215,7 @@ func (q1 Quat) Rotate(v Vec) Vec {
 
 // Dot product between two quaternions, equivalent to if this was a Vec4.
 func (q1 Quat) Dot(q2 Quat) float32 {
-	return q1.W*q2.W + q1.V.X*q2.V.X + q1.V.Y*q2.V.Y + q1.V.Z*q2.V.Z
+	return q1.W*q2.W + q1.I*q2.I + q1.J*q2.J + q1.K*q2.K
 }
 
 // QuatSlerp is Spherical Linear intERPolation, a method of interpolating
@@ -241,82 +278,105 @@ func AnglesToQuat(angle1, angle2, angle3 float32, order RotationOrder) Quat {
 	s[1], c[1] = math.Sincos(angle2 / 2)
 	s[2], c[2] = math.Sincos(angle3 / 2)
 
-	ret := Quat{}
+	var ret Quat
 	switch order {
-	case ZYX:
-		ret.W = float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2])
-		ret.V = Vec{float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
-			float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
-		}
-	case ZYZ:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-			float32(s[0]*c[1]*c[2] + c[0]*c[1]*s[2]),
-		}
-	case ZXY:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
-			float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
-		}
-	case ZXZ:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-			float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
-			float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
-		}
-	case YXZ:
-		ret.W = float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
-			float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
-			float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
-		}
-	case YXY:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-			float32(s[0]*c[1]*c[2] + c[0]*c[1]*s[2]),
-			float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
-		}
-	case YZX:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2])
-		ret.V = Vec{float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
-			float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
-		}
-	case YZY:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
-			float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-		}
-	case XYZ:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2])
-		ret.V = Vec{float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
-			float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
-			float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
-		}
-	case XYX:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-			float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
-		}
-	case XZY:
-		ret.W = float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2])
-		ret.V = Vec{float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
-			float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
-		}
-	case XZX:
-		ret.W = float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2])
-		ret.V = Vec{float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
-			float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
-			float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
-		}
 	default:
 		panic("Unsupported rotation order")
+	case ZYX:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2]),
+			I: float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
+			J: float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
+			K: float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
+		}
+
+	case ZYZ:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
+			J: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+			K: float32(s[0]*c[1]*c[2] + c[0]*c[1]*s[2]),
+		}
+	case ZXY:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2]),
+			I: float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
+			J: float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
+			K: float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
+		}
+
+	case ZXZ:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+			J: float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
+			K: float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
+		}
+
+	case YXZ:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2]),
+			I: float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
+			J: float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
+			K: float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
+		}
+
+	case YXY:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+			J: float32(s[0]*c[1]*c[2] + c[0]*c[1]*s[2]),
+			K: float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
+		}
+
+	case YZX:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2]),
+			I: float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
+			J: float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
+			K: float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
+		}
+
+	case YZY:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
+			J: float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
+			K: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+		}
+
+	case XYZ:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*s[1]*s[2]),
+			I: float32(c[0]*s[1]*s[2] + s[0]*c[1]*c[2]),
+			J: float32(c[0]*s[1]*c[2] - s[0]*c[1]*s[2]),
+			K: float32(c[0]*c[1]*s[2] + s[0]*s[1]*c[2]),
+		}
+
+	case XYX:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
+			J: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+			K: float32(s[0]*s[1]*c[2] - c[0]*s[1]*s[2]),
+		}
+
+	case XZY:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] + s[0]*s[1]*s[2]),
+			I: float32(s[0]*c[1]*c[2] - c[0]*s[1]*s[2]),
+			J: float32(c[0]*c[1]*s[2] - s[0]*s[1]*c[2]),
+			K: float32(c[0]*s[1]*c[2] + s[0]*c[1]*s[2]),
+		}
+
+	case XZX:
+		ret = Quat{
+			W: float32(c[0]*c[1]*c[2] - s[0]*c[1]*s[2]),
+			I: float32(c[0]*c[1]*s[2] + s[0]*c[1]*c[2]),
+			J: float32(c[0]*s[1]*s[2] - s[0]*s[1]*c[2]),
+			K: float32(c[0]*s[1]*c[2] + s[0]*s[1]*s[2]),
+		}
+
 	}
 	return ret
 }
@@ -332,7 +392,7 @@ func QuatLookAt(eye, center, upDir Vec) Quat {
 
 	// Find the rotation between the front of the object (that we assume towards Z-,
 	// but this depends on your model) and the desired direction
-	rotDir := RotationBetweenVecsQuat(Vec{0, 0, -1}, direction)
+	rotDir := RotationBetweenVecsQuat(Vec{X: 0, Y: 0, Z: -1}, direction)
 
 	// Recompute up so that it's perpendicular to the direction
 	// You can skip that part if you really want to force up
@@ -341,7 +401,7 @@ func QuatLookAt(eye, center, upDir Vec) Quat {
 
 	// Because of the 1rst rotation, the up is probably completely screwed up.
 	// Find the rotation between the "up" of the rotated object, and the desired up
-	upCur := rotDir.Rotate(Vec{0, 1, 0})
+	upCur := rotDir.Rotate(Vec{X: 0, Y: 1, Z: 0})
 	rotUp := RotationBetweenVecsQuat(upCur, upDir)
 
 	rotTarget := rotUp.Mul(rotDir) // remember, in reverse order.
@@ -363,10 +423,10 @@ func RotationBetweenVecsQuat(start, dest Vec) Quat {
 		// special case when vectors in opposite directions:
 		// there is no "ideal" rotation axis
 		// So guess one; any will do as long as it's perpendicular to start
-		axis := Cross(Vec{1, 0, 0}, start)
+		axis := Cross(Vec{X: 1, Y: 0, Z: 0}, start)
 		if Norm2(axis) < epsilon {
 			// bad luck, they were parallel, try again!
-			axis = Cross(Vec{0, 1, 0}, start)
+			axis = Cross(Vec{X: 0, Y: 1, Z: 0}, start)
 		}
 
 		return RotationQuat(math.Pi, Unit(axis))
@@ -377,13 +437,15 @@ func RotationBetweenVecsQuat(start, dest Vec) Quat {
 
 	return Quat{
 		W: s * 0.5,
-		V: Scale(1.0/s, axis),
+		I: axis.X / s,
+		J: axis.Y / s,
+		K: axis.Z / s,
 	}
 }
 
 // RotationMat3 returns a rotation 3x3 matrix.
 func (q Quat) RotationMat3() Mat3 {
-	qv := q.V
+	qv := q.IJK()
 	qs := Skew(qv)
 	q01 := IdentityMat3()
 	q01 = ScaleMat3(q01, q.W*q.W)
