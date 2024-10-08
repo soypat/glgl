@@ -30,6 +30,10 @@ func (p Program) BindFrag(name string) error {
 	return nil
 }
 
+func (p Program) ID() uint32 {
+	return p.rid
+}
+
 func (p Program) Bind()   { gl.UseProgram(p.rid) }
 func (p Program) Unbind() { gl.UseProgram(0) }
 
@@ -41,6 +45,17 @@ func (p Program) Delete() {
 	}
 	p.Unbind()
 	gl.DeleteProgram(p.rid)
+}
+
+func (p Program) AttribLocation(name string) (uint32, error) {
+	if !strings.HasSuffix(name, "\x00") {
+		return 0, ErrStringNotNullTerminated
+	}
+	loc := gl.GetAttribLocation(p.rid, gl.Str(name))
+	if loc < 0 {
+		return uint32(loc), errors.New("unable to find attribute in program- did you use the identifier so it was not stripped from program?")
+	}
+	return 0, nil
 }
 
 func (p Program) UniformLocation(name string) (int32, error) {

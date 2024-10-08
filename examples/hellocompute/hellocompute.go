@@ -14,6 +14,11 @@ import (
 	"github.com/soypat/glgl/v4.6-core/glgl"
 )
 
+type def struct {
+	//go:embed hellocompute.glsl
+	data string
+}
+
 const (
 	width   = 20
 	height  = 20
@@ -21,6 +26,7 @@ const (
 )
 
 func init() {
+	fmt.Println(def{})
 	// GLFW event handling must run on the main OS thread
 	runtime.LockOSThread()
 }
