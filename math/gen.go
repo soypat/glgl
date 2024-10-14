@@ -60,6 +60,7 @@ func run() error {
 				"package "+rep[0], "package "+rep[1],
 				"\"github.com/chewxy/math32\"", "\"math\"",
 				"\"github.com/soypat/glgl/math/ms1\"", "ms1 \"github.com/soypat/glgl/math/md1\"",
+				"\"github.com/soypat/glgl/math/ms3\"", "ms3 \"github.com/soypat/glgl/math/md3\"",
 			)
 			dst.WriteString(`// DO NOT EDIT.
 // This file was generated automatically
