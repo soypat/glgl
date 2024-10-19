@@ -104,7 +104,12 @@ func main() {
 	}
 
 	// Set uniform variable `u_color` in source code.
-	err = prog.SetUniformName4f("u_color\x00", 0.2, 0.3, 0.8, 1)
+	colorLoc, err := prog.UniformLocation("u_color\x00")
+	if err != nil {
+		slog.Error("searching for color uniform", "err", err.Error())
+		return
+	}
+	err = prog.SetUniformf(colorLoc, 0.2, 0.3, 0.8, 1)
 	if err != nil {
 		slog.Error("creating index buffer", "err", err.Error())
 		return
@@ -114,7 +119,7 @@ func main() {
 
 		gl.DrawElements(gl.TRIANGLES, int32(len(indices)), gl.UNSIGNED_INT, unsafe.Pointer(nil))
 
-		prog.SetUniformName4f("u_color\x00", float32(time.Now().UnixMilli()%1000)/1000, .5, .3, 1)
+		prog.SetUniformf(colorLoc, float32(time.Now().UnixMilli()%1000)/1000, .5, .3, 1)
 		// Maintenance
 		glfw.SwapInterval(1) // Can prevent epilepsy for high frequency
 		window.SwapBuffers()

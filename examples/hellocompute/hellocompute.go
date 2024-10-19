@@ -46,9 +46,7 @@ func main() {
 		return
 	}
 	defer terminate()
-	fmt.Println(glgl.MaxComputeWorkGroupCount())
-	fmt.Println(glgl.MaxComputeWorkGroupSize())
-	return
+
 	ss, err := glgl.ParseCombined(strings.NewReader(compute))
 	if err != nil {
 		slog.Error("parsing", "err", err.Error())
@@ -60,7 +58,12 @@ func main() {
 		return
 	}
 	prog.Bind()
-	err = prog.SetUniform1f("u_adder\x00", addThis)
+	adderLoc, err := prog.UniformLocation("u_adder\x00")
+	if err != nil {
+		slog.Error("finding uniform", "err", err.Error())
+		return
+	}
+	err = prog.SetUniformf(adderLoc, addThis)
 	if err != nil {
 		slog.Error("setting uniform", "err", err.Error())
 		return

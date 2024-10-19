@@ -57,7 +57,8 @@ func main() {
 		return
 	}
 	prog.Bind()
-	err = prog.SetUniform1f("u_adder\x00", addThis)
+	adderLoc, _ := prog.UniformLocation("u_adder\x00")
+	err = prog.SetUniformf(adderLoc, addThis)
 	if err != nil {
 		slog.Error("setting uniform", "err", err.Error())
 		return
