@@ -47,6 +47,15 @@ func (a Box) Center() Vec {
 	return Scale(0.5, Add(a.Min, a.Max))
 }
 
+// Volume returns the volume contained within the box. Returns 0 for malformed boxes.
+func (a Box) Volume() float64 {
+	sz := a.Size()
+	if sz.X < 0 || sz.Y < 0 || sz.Z < 0 {
+		return 0
+	}
+	return sz.X * sz.Z * sz.Y
+}
+
 // Vertices returns a slice of the 8 vertices
 // corresponding to each of the Box's corners.
 //

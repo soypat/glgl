@@ -254,7 +254,7 @@ func RotationBetweenVecsMat4(start, dest Vec) Mat4 {
 	vx = AddMat3(vx, IdentityMat3())
 	vx = AddMat3(vx, vx2)
 
-	return vx.expand()
+	return vx.AsMat4()
 }
 
 // EqualMat4 tests the equality of 4x4 matrices.

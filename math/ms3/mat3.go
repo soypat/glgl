@@ -180,6 +180,11 @@ func (a Mat3) Transpose() Mat3 {
 	}
 }
 
+// VecDiag returns the matrix diagonal as a Vec.
+func (m Mat3) VecDiag() Vec {
+	return Vec{X: m.x00, Y: m.x11, Z: m.x22}
+}
+
 // VecRow returns the ith row as a Vec.
 func (m Mat3) VecRow(i int) Vec {
 	switch i {
@@ -220,7 +225,9 @@ func (m Mat3) Array() (rowmajor [9]float32) {
 	return rowmajor
 }
 
-func (m Mat3) expand() Mat4 {
+// AsMat4 expands the Mat3 to fill the first rows and columns of a Mat4
+// and sets the last diagonal element of the Mat4 to 1.
+func (m Mat3) AsMat4() Mat4 {
 	return Mat4{
 		m.x00, m.x01, m.x02, 0,
 		m.x10, m.x11, m.x12, 0,
@@ -229,7 +236,7 @@ func (m Mat3) expand() Mat4 {
 	}
 }
 
-// Mat returns a 3×3 rotation matrix corresponding to the receiver. It
+// RotationMat3 returns a 3×3 rotation matrix corresponding to the receiver. It
 // may be used to perform rotations on a 3-vector or to apply the rotation
 // to a 3×n matrix of column vectors. If the receiver is not a unit
 // quaternion, the returned matrix will not be a pure rotation.

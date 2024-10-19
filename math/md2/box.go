@@ -47,6 +47,15 @@ func (a Box) Center() Vec {
 	return Scale(0.5, Add(a.Min, a.Max))
 }
 
+// Area returns the area of the box. Returns 0 for malformed boxes.
+func (a Box) Area() float64 {
+	sz := a.Size()
+	if sz.X < 0 || sz.Y < 0 {
+		return 0
+	}
+	return sz.X * sz.Y
+}
+
 // Vertices returns a slice of the 4 vertices
 // corresponding to each of the Box's corners.
 //
