@@ -1,0 +1,242 @@
+package ms2
+
+// Spline3 implements uniform cubic spline logic (degree 3).
+// Keep in mind the iteration over the spline points and how the points are interpreted
+// depend on the type of spline being worked with.
+type Spline3 struct {
+	m mat4
+}
+
+// NewSpline3 returns a [Spline3] ready for use.
+// See [Freya Holmér's video] on splines for more information on how a matrix represents a uniform cubic spline.
+//
+// [Freya Holmér's video]: https://youtu.be/jvPPXbo87ds?si=Sn08aUjSKSXeRZ6D&t=419
+func NewSpline3(matrix4x4 []float32) Spline3 {
+	if len(matrix4x4) < 16 {
+		panic("input matrix too short (need to be 4x4, row major)")
+	}
+	return Spline3{m: newMat4(matrix4x4)}
+}
+
+// Mat4Array returns a row-major ordered copy of the values of the cubic spline 4x4 matrix.
+func (s Spline3) Mat4Array() [16]float32 {
+	return s.m.Array()
+}
+
+// Evaluate interpolates the cubic spline over 4 points with a value of t in between 0 and 1.
+func (s Spline3) Evaluate(t float32, v0, v1, v2, v3 Vec) (res Vec) {
+	x := vec4{x: v0.X, y: v1.X, z: v2.X, w: v3.X}
+	y := vec4{x: v0.Y, y: v1.Y, z: v2.Y, w: v3.Y}
+	x = matvecmul4(s.m, x)
+	y = matvecmul4(s.m, y)
+	v0 = Vec{X: x.x, Y: y.x}
+	v1 = Vec{X: x.y, Y: y.y}
+	v2 = Vec{X: x.z, Y: y.z}
+	v3 = Vec{X: x.w, Y: y.w}
+	res = Add(v0, Scale(t, v1))
+	res = Add(res, Scale(t*t, v2))
+	res = Add(res, Scale(t*t*t, v3))
+	return res
+}
+
+// BasisFuncs returns the basis functions of the cubic spline corresponding to each of 4 control points.
+func (s Spline3) BasisFuncs() (bs [4]func(float32) float32) {
+	arr := s.m.Transpose().Array()
+	for i := range bs {
+		off := i * 4
+		bs[i] = func(t float32) (b float32) {
+			return arr[off+0] + t*arr[off+1] + t*t*arr[off+2] + t*t*t*arr[off+3]
+		}
+	}
+	return bs
+}
+
+// BasisFuncs returns the differentiaed basis functions of the cubic spline.
+func (s Spline3) BasisFuncsDiff() (bs [4]func(float32) float32) {
+	arr := s.m.Transpose().Array()
+	for i := range bs {
+		off := i * 4
+		bs[i] = func(t float32) (b float32) {
+			return arr[off+1] + 2*t*arr[off+2] + 3*t*t*arr[off+3]
+		}
+	}
+	return bs
+}
+
+// BasisFuncsDiff2 returns the twice-differentiaed basis functions of the cubic spline.
+func (s Spline3) BasisFuncsDiff2() (bs [4]func(float32) float32) {
+	arr := s.m.Transpose().Array()
+	for i := range bs {
+		off := i * 4
+		bs[i] = func(t float32) (b float32) {
+			return 2*arr[off+2] + 6*t*arr[off+3]
+		}
+	}
+	return bs
+}
+
+// BasisFuncsDiff3 returns the thrice-differentiaed basis functions of the cubic spline.
+func (s Spline3) BasisFuncsDiff3() (bs [4]func(float32) float32) {
+	arr := s.m.Transpose().Array()
+	for i := range bs {
+		off := i * 4
+		bs[i] = func(t float32) (b float32) {
+			return 6 * arr[off+3]
+		}
+	}
+	return bs
+}
+
+var (
+	_beziermat = newMat4([]float32{
+		1, 0, 0, 0,
+		-3, 3, 0, 0,
+		3, -6, 3, 0,
+		-1, 3, -3, 1,
+	})
+	_hermiteMat = newMat4([]float32{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		-3, -2, 3, -1,
+		2, 1, -2, 1,
+	})
+	_basisMat = scalemat4(1./6, newMat4([]float32{
+		1, 4, 1, 0,
+		-3, 0, 3, 0,
+		3, -6, 3, 0,
+		-1, 3, -3, 1,
+	}))
+	_cardinalMat = func(s float32) mat4 {
+		return newMat4([]float32{
+			0, 1, 0, 0,
+			-s, 0, s, 0,
+			2 * s, s - 3, 3 - 2*s, -s,
+			-s, 2 - s, s - 2, s,
+		})
+	}
+	_catmullromMat = _cardinalMat(0.5)
+)
+
+// SplineBezier returns a Bézier cubic spline interpreter. Result splines have the following characteristics:
+//   - C¹/C⁰ continuous.
+//   - Interpolates some points.
+//   - Manual tangents, second and third vectors are control points.
+//   - Uses in shapes, fonts and vector graphics.
+func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
+
+// SplineHermite returns a Hermite cubic spline interpreter. Result splines have the following characteristics:
+//   - C¹/C⁰ continuous.
+//   - Interpolates all points.
+//   - Explicit tangents. Second and fourth vector arguments specify velocities.
+//   - Uses in animation, physics simulations and interpolation.
+func SplineHermite() Spline3 { return Spline3{m: _hermiteMat} }
+
+// SplineCatmullRom returns a Catmull-Rom cubic spline interpreter. Result splines have the following characteristics:
+//   - C¹ continuous.
+//   - Interpolates all points.
+//   - Automatic tangents.
+//   - Used for animation and path smoothing.
+//
+// CatmullRom is a special case of a Cardinal spline when scale=0.5.
+func SplineCatmullRom() Spline3 { return Spline3{m: _catmullromMat} }
+
+// SplineCardinal returns a cardinal cubic spline interpreter.
+func SplineCardinal(scale float32) Spline3 { return Spline3{m: _cardinalMat(scale)} }
+
+// SplineBasis returns a B-Spline interpreter. Result splines have the following characteristics:
+//   - C² continuous.
+//   - No point interpolation.
+//   - Automatic tangents.
+//   - Ideal for curvature-sensitive shapes and animations such as camera paths. Used in industrial design.
+func SplineBasis() Spline3 { return Spline3{m: _basisMat} }
+
+// newMat4 instantiates a new 4x4 Mat4 matrix from the first 16 values in row major order.
+// If v is shorter than 16 newMat4 panics.
+func newMat4(v []float32) (m mat4) {
+	_ = v[15]
+	m.x00, m.x01, m.x02, m.x03 = v[0], v[1], v[2], v[3]
+	m.x10, m.x11, m.x12, m.x13 = v[4], v[5], v[6], v[7]
+	m.x20, m.x21, m.x22, m.x23 = v[8], v[9], v[10], v[11]
+	m.x30, m.x31, m.x32, m.x33 = v[12], v[13], v[14], v[15]
+	return m
+}
+
+// mat4 is a 4x4 matrix.
+type mat4 struct {
+	x00, x01, x02, x03 float32
+	x10, x11, x12, x13 float32
+	x20, x21, x22, x23 float32
+	x30, x31, x32, x33 float32
+}
+
+type vec4 struct {
+	x, y, z, w float32
+}
+
+func matvecmul4(m mat4, v vec4) (res vec4) {
+	res.x = m.x00*v.x + m.x01*v.y + m.x02*v.z + m.x03*v.w
+	res.y = m.x10*v.x + m.x11*v.y + m.x12*v.z + m.x13*v.w
+	res.z = m.x20*v.x + m.x21*v.y + m.x22*v.z + m.x23*v.w
+	res.w = m.x30*v.x + m.x31*v.y + m.x32*v.z + m.x33*v.w
+	return res
+}
+
+func scalemat4(f float32, m mat4) mat4 {
+	m.x00 *= f
+	m.x01 *= f
+	m.x02 *= f
+	m.x03 *= f
+	m.x10 *= f
+	m.x11 *= f
+	m.x12 *= f
+	m.x13 *= f
+	m.x20 *= f
+	m.x21 *= f
+	m.x22 *= f
+	m.x23 *= f
+	m.x30 *= f
+	m.x31 *= f
+	m.x32 *= f
+	m.x33 *= f
+	return m
+}
+
+// Put puts elements of the matrix in row-major order in b. If b is not of at least length 16 then Put panics.
+func (m *mat4) Put(b []float32) {
+	_ = b[15]
+	b[0] = m.x00
+	b[1] = m.x01
+	b[2] = m.x02
+	b[3] = m.x03
+
+	b[4] = m.x10
+	b[5] = m.x11
+	b[6] = m.x12
+	b[7] = m.x13
+
+	b[8] = m.x20
+	b[9] = m.x21
+	b[10] = m.x22
+	b[11] = m.x23
+
+	b[12] = m.x30
+	b[13] = m.x31
+	b[14] = m.x32
+	b[15] = m.x33
+}
+
+// Array returns the matrix values in a static array copy in row major order.
+func (m mat4) Array() (rowmajor [16]float32) {
+	m.Put(rowmajor[:])
+	return rowmajor
+}
+
+// Transpose returns the transpose of a.
+func (a mat4) Transpose() mat4 {
+	return mat4{
+		x00: a.x00, x01: a.x10, x02: a.x20, x03: a.x30,
+		x10: a.x01, x11: a.x11, x12: a.x21, x13: a.x31,
+		x20: a.x02, x21: a.x12, x22: a.x22, x23: a.x32,
+		x30: a.x03, x31: a.x13, x32: a.x23, x33: a.x33,
+	}
+}

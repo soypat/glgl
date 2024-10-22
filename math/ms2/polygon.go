@@ -270,19 +270,10 @@ func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float32, facets int32) ([
 	arcCenterDir := Unit(Add(V10, V12))
 	arcCenter := Add(p1, Scale(r/sint, arcCenterDir))
 	arcAngle := math.Pi - theta
-	arcAngle = applyOrientation(arcAngle, start, p1, end)
+	arcAngle = CopyOrientation(arcAngle, start, p1, end)
 	dst = appendArcWithCenter(dst, start, arcCenter, arcAngle, facets)
 	if !EqualElem(p2, end, arcTol*norm12) {
 		dst = append(dst, end) // Cap smooth if p2 point not near radius end.
 	}
 	return dst, nil
-}
-
-// applyOrientation calculates the orientation of 3 ordered points in 2D plane and applies the sign
-// to f and returns it. Counter-clockwise ordering is positive, clockwise negative.
-func applyOrientation(f float32, p1, p2, p3 Vec) float32 {
-	// See C++ version: https://www.geeksforgeeks.org/orientation-3-ordered-points/
-	slope1 := (p2.Y - p1.Y) * (p3.X - p2.X)
-	slope2 := (p3.Y - p2.Y) * (p2.X - p1.X)
-	return math.Copysign(f, slope2-slope1)
 }

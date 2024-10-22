@@ -229,3 +229,17 @@ func (v Vec) polar() pol {
 func SmoothStepElem(e0, e1, x Vec) Vec {
 	return Vec{X: ms1.SmoothStep(e0.X, e1.X, x.X), Y: ms1.SmoothStep(e0.Y, e1.Y, x.Y)}
 }
+
+// Orientation calculates the orientation in the plane of 3 points and applies it to f.
+//   - f returned for counter-clockwise orientation
+//   - -f returned for clockwise orientation
+//   - 0 returned for 3 colinear points
+func CopyOrientation(f float64, p1, p2, p3 Vec) float64 {
+	// See C++ version: https://www.geeksforgeeks.org/orientation-3-ordered-points/
+	slope1 := (p2.Y - p1.Y) * (p3.X - p2.X)
+	slope2 := (p3.Y - p2.Y) * (p2.X - p1.X)
+	if slope1 == slope2 {
+		return 0
+	}
+	return math.Copysign(f, slope2-slope1)
+}
