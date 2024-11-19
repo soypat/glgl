@@ -3,6 +3,21 @@ package ms2
 // Spline3 implements uniform cubic spline logic (degree 3).
 // Keep in mind the iteration over the spline points and how the points are interpreted
 // depend on the type of spline being worked with.
+//
+// Bézier example:
+//
+//	const Nsamples = 64 // Number of times to sample each set of two Bézier points.
+//	var spline []ms2.Vec = makeBezierSpline()
+//	bz := ms2.SplineBezier()
+//	var curve []ms2.Vec
+//	for i := 0; i < len(spline); i += 4 {
+//		p0, cp0, cp1, p1 := spline[4*i], spline[4*i+1], spline[4*i+2], spline[4*i+3]
+//		for t := float32(0.0); t<1; t+=1./Nsamples {
+//			xy := bz.Evaluate(t, p0, cp0, cp1, p1)
+//			curve = append(curve, xy)
+//		}
+//	}
+//	plot(curve)
 type Spline3 struct {
 	m mat4
 }
@@ -122,6 +137,8 @@ var (
 //   - Interpolates some points.
 //   - Manual tangents, second and third vectors are control points.
 //   - Uses in shapes, fonts and vector graphics.
+//
+// Iterate every 4 points. Point0, ControlPoint0, ControlPoint1, Point1.
 func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
 
 // SplineHermite returns a Hermite cubic spline interpreter. Result splines have the following characteristics:
@@ -129,15 +146,15 @@ func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
 //   - Interpolates all points.
 //   - Explicit tangents. Second and fourth vector arguments specify velocities.
 //   - Uses in animation, physics simulations and interpolation.
+//
+// Iterate every 2 points, Point0, Velocity0, Point1, Velocity1.
 func SplineHermite() Spline3 { return Spline3{m: _hermiteMat} }
 
-// SplineCatmullRom returns a Catmull-Rom cubic spline interpreter. Result splines have the following characteristics:
+// SplineCatmullRom returns a Catmull-Rom cubic spline interpreter, a special case of Cardinal spline when scale=0.5. Result splines have the following characteristics:
 //   - C¹ continuous.
 //   - Interpolates all points.
 //   - Automatic tangents.
 //   - Used for animation and path smoothing.
-//
-// CatmullRom is a special case of a Cardinal spline when scale=0.5.
 func SplineCatmullRom() Spline3 { return Spline3{m: _catmullromMat} }
 
 // SplineCardinal returns a cardinal cubic spline interpreter.
