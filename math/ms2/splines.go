@@ -38,7 +38,7 @@ func (s Spline3) Mat4Array() [16]float32 {
 	return s.m.Array()
 }
 
-// Evaluate interpolates the cubic spline over 4 points with a value of t in between 0 and 1.
+// Evaluate evaluates the cubic spline over 4 points with a value of t. t is usually between 0 and 1 to interpolate the spline.
 func (s Spline3) Evaluate(t float32, v0, v1, v2, v3 Vec) (res Vec) {
 	x := vec4{x: v0.X, y: v1.X, z: v2.X, w: v3.X}
 	y := vec4{x: v0.Y, y: v1.Y, z: v2.Y, w: v3.Y}
@@ -166,6 +166,93 @@ func SplineCardinal(scale float32) Spline3 { return Spline3{m: _cardinalMat(scal
 //   - Automatic tangents.
 //   - Ideal for curvature-sensitive shapes and animations such as camera paths. Used in industrial design.
 func SplineBasis() Spline3 { return Spline3{m: _basisMat} }
+
+// Spline3Sampler implements algorithms for sampling points of a cubic spline [Spline3].
+type Spline3Sampler struct {
+	Spline         Spline3
+	v0, v1, v2, v3 Vec
+	// Tolerance sets the maximum permissible error for sampling the cubic spline.
+	// That is to say the resulting sampled set of line segments will approximate the curve to within Tolerance.
+	// A Tolerance of zero means there is no filter to points being appended.
+	Tolerance float32
+}
+
+// SetSplinePoints sets the 4 [Vec]s which define a cubic spline. They are passed to the Spline on Evaluate calls.
+func (s *Spline3Sampler) SetSplinePoints(v0, v1, v2, v3 Vec) {
+	s.v0, s.v1, s.v2, s.v3 = v0, v1, v2, v3
+}
+
+// Evaluate evaluates a point on the spline with points set by [Spline3Sampler.SetSplinePoints].
+// It calls [Spline3.Evaluate] with t and the set points.
+func (s *Spline3Sampler) Evaluate(t float32) Vec {
+	return s.Spline.Evaluate(t, s.v0, s.v1, s.v2, s.v3)
+}
+
+// SampleBisect samples the cubic spline using bisection method to
+// find points which discretize the curve to within [Spline3Sampler.Tol] error
+// These points are then appended to dst and the result returned.
+//
+// It does not append points at extremes t=0 and t=1.
+// maxDepth determines the max amount of times to subdivide the curve.
+// The max amount of subdivisions (points appended) is given by 2**maxDepth.
+func (s *Spline3Sampler) SampleBisect(dst []Vec, maxDepth int) []Vec {
+	if maxDepth <= 0 {
+		panic("invalid depth")
+	} else if s.Tolerance < 0 {
+		panic("negative tolerance")
+	}
+	baseRes := 1.0 / float32(uint(1)<<uint(maxDepth))
+	return s.sampleBisect(dst, maxDepth, 0, s.Evaluate(0), 0, baseRes)
+}
+
+// SampleBisectWithExtremes is same as [Spline3Sampler.SampleBisect] but adding start and end points at t=0, t=1.
+func (s *Spline3Sampler) SampleBisectWithExtremes(dst []Vec, maxDepth int) []Vec {
+	if maxDepth <= 0 {
+		panic("invalid depth")
+	} else if s.Tolerance < 0 {
+		panic("negative tolerance")
+	}
+	baseRes := 1.0 / float32(uint(1)<<uint(maxDepth))
+	xStart := s.Evaluate(0)
+	dst = append(dst, xStart)
+	dst = s.sampleBisect(dst, maxDepth, 0, xStart, 0, baseRes)
+	dst = append(dst, s.Evaluate(1))
+	return dst
+}
+
+func (s *Spline3Sampler) sampleBisect(dst []Vec, lvl, idx int, xstart Vec, tstart, baseRes float32) []Vec {
+	if lvl == 0 {
+		if idx != 0 {
+			dst = append(dst, xstart)
+		}
+		return dst
+	}
+	// Same algorithm as octree splitting but in 1D.
+	slvl := lvl - 1
+	midIdx := idx + 1<<slvl
+	endIdx := idx + 1<<lvl
+
+	tend := baseRes * float32(endIdx)
+	tmid := baseRes * float32(midIdx)
+	xend := s.Evaluate(tend)
+	xmid := s.Evaluate(tmid)
+	if Collinear(xstart, xmid, xend, s.Tolerance) {
+		// Check offset- curve may be undersampled.
+		var k float32 = 0.45
+		tmid2 := tstart + k*(tend-tstart)
+		xmid2 := s.Evaluate(tmid2)
+		if Collinear(xstart, xmid2, xend, s.Tolerance) {
+			if idx != 0 {
+				dst = append(dst, xstart)
+			}
+			return dst // Won't subdivide further, this section of spline is straight.
+		}
+	}
+
+	dst = s.sampleBisect(dst, slvl, idx, xstart, tstart, baseRes)
+	dst = s.sampleBisect(dst, slvl, midIdx, xmid, tmid, baseRes)
+	return dst
+}
 
 // newMat4 instantiates a new 4x4 Mat4 matrix from the first 16 values in row major order.
 // If v is shorter than 16 newMat4 panics.

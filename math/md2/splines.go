@@ -7,6 +7,21 @@ package md2
 // Spline3 implements uniform cubic spline logic (degree 3).
 // Keep in mind the iteration over the spline points and how the points are interpreted
 // depend on the type of spline being worked with.
+//
+// Bézier example:
+//
+//	const Nsamples = 64 // Number of times to sample each set of two Bézier points.
+//	var spline []ms2.Vec = makeBezierSpline()
+//	bz := ms2.SplineBezier()
+//	var curve []ms2.Vec
+//	for i := 0; i < len(spline); i += 4 {
+//		p0, cp0, cp1, p1 := spline[4*i], spline[4*i+1], spline[4*i+2], spline[4*i+3]
+//		for t := float64(0.0); t<1; t+=1./Nsamples {
+//			xy := bz.Evaluate(t, p0, cp0, cp1, p1)
+//			curve = append(curve, xy)
+//		}
+//	}
+//	plot(curve)
 type Spline3 struct {
 	m mat4
 }
@@ -27,7 +42,7 @@ func (s Spline3) Mat4Array() [16]float64 {
 	return s.m.Array()
 }
 
-// Evaluate interpolates the cubic spline over 4 points with a value of t in between 0 and 1.
+// Evaluate evaluates the cubic spline over 4 points with a value of t. t is usually between 0 and 1 to interpolate the spline.
 func (s Spline3) Evaluate(t float64, v0, v1, v2, v3 Vec) (res Vec) {
 	x := vec4{x: v0.X, y: v1.X, z: v2.X, w: v3.X}
 	y := vec4{x: v0.Y, y: v1.Y, z: v2.Y, w: v3.Y}
@@ -126,6 +141,8 @@ var (
 //   - Interpolates some points.
 //   - Manual tangents, second and third vectors are control points.
 //   - Uses in shapes, fonts and vector graphics.
+//
+// Iterate every 4 points. Point0, ControlPoint0, ControlPoint1, Point1.
 func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
 
 // SplineHermite returns a Hermite cubic spline interpreter. Result splines have the following characteristics:
@@ -133,15 +150,15 @@ func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
 //   - Interpolates all points.
 //   - Explicit tangents. Second and fourth vector arguments specify velocities.
 //   - Uses in animation, physics simulations and interpolation.
+//
+// Iterate every 2 points, Point0, Velocity0, Point1, Velocity1.
 func SplineHermite() Spline3 { return Spline3{m: _hermiteMat} }
 
-// SplineCatmullRom returns a Catmull-Rom cubic spline interpreter. Result splines have the following characteristics:
+// SplineCatmullRom returns a Catmull-Rom cubic spline interpreter, a special case of Cardinal spline when scale=0.5. Result splines have the following characteristics:
 //   - C¹ continuous.
 //   - Interpolates all points.
 //   - Automatic tangents.
 //   - Used for animation and path smoothing.
-//
-// CatmullRom is a special case of a Cardinal spline when scale=0.5.
 func SplineCatmullRom() Spline3 { return Spline3{m: _catmullromMat} }
 
 // SplineCardinal returns a cardinal cubic spline interpreter.
@@ -153,6 +170,93 @@ func SplineCardinal(scale float64) Spline3 { return Spline3{m: _cardinalMat(scal
 //   - Automatic tangents.
 //   - Ideal for curvature-sensitive shapes and animations such as camera paths. Used in industrial design.
 func SplineBasis() Spline3 { return Spline3{m: _basisMat} }
+
+// Spline3Sampler implements algorithms for sampling points of a cubic spline [Spline3].
+type Spline3Sampler struct {
+	Spline         Spline3
+	v0, v1, v2, v3 Vec
+	// Tolerance sets the maximum permissible error for sampling the cubic spline.
+	// That is to say the resulting sampled set of line segments will approximate the curve to within Tolerance.
+	// A Tolerance of zero means there is no filter to points being appended.
+	Tolerance float64
+}
+
+// SetSplinePoints sets the 4 [Vec]s which define a cubic spline. They are passed to the Spline on Evaluate calls.
+func (s *Spline3Sampler) SetSplinePoints(v0, v1, v2, v3 Vec) {
+	s.v0, s.v1, s.v2, s.v3 = v0, v1, v2, v3
+}
+
+// Evaluate evaluates a point on the spline with points set by [Spline3Sampler.SetSplinePoints].
+// It calls [Spline3.Evaluate] with t and the set points.
+func (s *Spline3Sampler) Evaluate(t float64) Vec {
+	return s.Spline.Evaluate(t, s.v0, s.v1, s.v2, s.v3)
+}
+
+// SampleBisect samples the cubic spline using bisection method to
+// find points which discretize the curve to within [Spline3Sampler.Tol] error
+// These points are then appended to dst and the result returned.
+//
+// It does not append points at extremes t=0 and t=1.
+// maxDepth determines the max amount of times to subdivide the curve.
+// The max amount of subdivisions (points appended) is given by 2**maxDepth.
+func (s *Spline3Sampler) SampleBisect(dst []Vec, maxDepth int) []Vec {
+	if maxDepth <= 0 {
+		panic("invalid depth")
+	} else if s.Tolerance < 0 {
+		panic("negative tolerance")
+	}
+	baseRes := 1.0 / float64(uint(1)<<uint(maxDepth))
+	return s.sampleBisect(dst, maxDepth, 0, s.Evaluate(0), 0, baseRes)
+}
+
+// SampleBisectWithExtremes is same as [Spline3Sampler.SampleBisect] but adding start and end points at t=0, t=1.
+func (s *Spline3Sampler) SampleBisectWithExtremes(dst []Vec, maxDepth int) []Vec {
+	if maxDepth <= 0 {
+		panic("invalid depth")
+	} else if s.Tolerance < 0 {
+		panic("negative tolerance")
+	}
+	baseRes := 1.0 / float64(uint(1)<<uint(maxDepth))
+	xStart := s.Evaluate(0)
+	dst = append(dst, xStart)
+	dst = s.sampleBisect(dst, maxDepth, 0, xStart, 0, baseRes)
+	dst = append(dst, s.Evaluate(1))
+	return dst
+}
+
+func (s *Spline3Sampler) sampleBisect(dst []Vec, lvl, idx int, xstart Vec, tstart, baseRes float64) []Vec {
+	if lvl == 0 {
+		if idx != 0 {
+			dst = append(dst, xstart)
+		}
+		return dst
+	}
+	// Same algorithm as octree splitting but in 1D.
+	slvl := lvl - 1
+	midIdx := idx + 1<<slvl
+	endIdx := idx + 1<<lvl
+
+	tend := baseRes * float64(endIdx)
+	tmid := baseRes * float64(midIdx)
+	xend := s.Evaluate(tend)
+	xmid := s.Evaluate(tmid)
+	if Collinear(xstart, xmid, xend, s.Tolerance) {
+		// Check offset- curve may be undersampled.
+		var k float64 = 0.45
+		tmid2 := tstart + k*(tend-tstart)
+		xmid2 := s.Evaluate(tmid2)
+		if Collinear(xstart, xmid2, xend, s.Tolerance) {
+			if idx != 0 {
+				dst = append(dst, xstart)
+			}
+			return dst // Won't subdivide further, this section of spline is straight.
+		}
+	}
+
+	dst = s.sampleBisect(dst, slvl, idx, xstart, tstart, baseRes)
+	dst = s.sampleBisect(dst, slvl, midIdx, xmid, tmid, baseRes)
+	return dst
+}
 
 // newMat4 instantiates a new 4x4 Mat4 matrix from the first 16 values in row major order.
 // If v is shorter than 16 newMat4 panics.

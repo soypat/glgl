@@ -243,3 +243,10 @@ func CopyOrientation(f float64, p1, p2, p3 Vec) float64 {
 	}
 	return math.Copysign(f, slope2-slope1)
 }
+
+// Collinear returns true if 3 points lie on a single line to within tol.
+func Collinear(a, b, c Vec, tol float64) bool {
+	pa := Unit(Sub(a, c))
+	pb := Unit(Sub(b, c))
+	return math.Abs(Cross(pa, pb)) < tol
+}
