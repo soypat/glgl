@@ -102,6 +102,12 @@ func (s Spline3) BasisFuncsDiff3() (bs [4]func(float32) float32) {
 	return bs
 }
 
+// matrix form of bezier curves:
+//
+//	                        [ a b c d ]   [ P0 ]
+//	B(t) = [1  t  t²  t³] * | e f g h | * | P1 |
+//	                        | i j k l |   | P2 |
+//	                        [ m n o p ]   [ P3 ]
 var (
 	_beziermat = newMat4([]float32{
 		1, 0, 0, 0,
@@ -129,17 +135,23 @@ var (
 			-s, 2 - s, s - 2, s,
 		})
 	}
-	_catmullromMat = _cardinalMat(0.5)
+	_catmullromMat      = _cardinalMat(0.5)
+	_quadraticBezierMat = newMat4([]float32{
+		1, 0, 0, 0,
+		-2, 2, 0, 0,
+		1, -2, 1, 0,
+		0, 0, 0, 0,
+	})
 )
 
-// SplineBezier returns a Bézier cubic spline interpreter. Result splines have the following characteristics:
+// SplineBezierCubic returns a Bézier cubic spline interpreter. Result splines have the following characteristics:
 //   - C¹/C⁰ continuous.
 //   - Interpolates some points.
 //   - Manual tangents, second and third vectors are control points.
-//   - Uses in shapes, fonts and vector graphics.
+//   - Uses in shapes and vector graphics.
 //
-// Iterate every 4 points. Point0, ControlPoint0, ControlPoint1, Point1.
-func SplineBezier() Spline3 { return Spline3{m: _beziermat} }
+// Iterate every 3 points. Point0, ControlPoint0, ControlPoint1, Point1.
+func SplineBezierCubic() Spline3 { return Spline3{m: _beziermat} }
 
 // SplineHermite returns a Hermite cubic spline interpreter. Result splines have the following characteristics:
 //   - C¹/C⁰ continuous.
@@ -167,13 +179,21 @@ func SplineCardinal(scale float32) Spline3 { return Spline3{m: _cardinalMat(scal
 //   - Ideal for curvature-sensitive shapes and animations such as camera paths. Used in industrial design.
 func SplineBasis() Spline3 { return Spline3{m: _basisMat} }
 
+// SplineBezierQuadratic returns a quadratic spline interpreter (fourth point is inneffective).
+//   - C¹ continuous.
+//   - Interpolates all points.
+//   - Manual tangents.
+//   - Used in fonts. Cubic beziers are superior.
+//
+// Iterate every 2 points. Point0, ControlPoint, Point1. Keep in mind this is an innefficient implementation of a quadratic bezier. Is here for convenience.
+func SplineBezierQuadratic() Spline3 { return Spline3{m: _quadraticBezierMat} }
+
 // Spline3Sampler implements algorithms for sampling points of a cubic spline [Spline3].
 type Spline3Sampler struct {
 	Spline         Spline3
 	v0, v1, v2, v3 Vec
 	// Tolerance sets the maximum permissible error for sampling the cubic spline.
 	// That is to say the resulting sampled set of line segments will approximate the curve to within Tolerance.
-	// A Tolerance of zero means there is no filter to points being appended.
 	Tolerance float32
 }
 
@@ -200,6 +220,8 @@ func (s *Spline3Sampler) SampleBisect(dst []Vec, maxDepth int) []Vec {
 		panic("invalid depth")
 	} else if s.Tolerance < 0 {
 		panic("negative tolerance")
+	} else if s.Tolerance == 0 {
+		panic("zero tolerance, initialize Spline3Sampler Tolerance field to a small value, i.e: 0.01")
 	}
 	baseRes := 1.0 / float32(uint(1)<<uint(maxDepth))
 	return s.sampleBisect(dst, maxDepth, 0, s.Evaluate(0), 0, baseRes)
@@ -211,6 +233,8 @@ func (s *Spline3Sampler) SampleBisectWithExtremes(dst []Vec, maxDepth int) []Vec
 		panic("invalid depth")
 	} else if s.Tolerance < 0 {
 		panic("negative tolerance")
+	} else if s.Tolerance == 0 {
+		panic("zero tolerance, initialize Spline3Sampler Tolerance field to a small value, i.e: 0.01")
 	}
 	baseRes := 1.0 / float32(uint(1)<<uint(maxDepth))
 	xStart := s.Evaluate(0)

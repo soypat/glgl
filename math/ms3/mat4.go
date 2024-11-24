@@ -40,8 +40,8 @@ func nanMat4() Mat4 {
 		math.NaN(), math.NaN(), math.NaN(), math.NaN()}
 }
 
-// TranslateMat4 returns a 4x4 translation matrix.
-func TranslateMat4(v Vec) Mat4 {
+// TranslatingMat4 returns a 4x4 translation matrix.
+func TranslatingMat4(v Vec) Mat4 {
 	return Mat4{
 		1, 0, 0, v.X,
 		0, 1, 0, v.Y,
@@ -49,9 +49,9 @@ func TranslateMat4(v Vec) Mat4 {
 		0, 0, 0, 1}
 }
 
-// ScaleMat4 returns a 4x4 scaling matrix.
+// ScalingMat4 returns a 4x4 scaling matrix.
 // Scaling does not preserve distance. See: ScaleUniform3D()
-func ScaleMat4(v Vec) Mat4 {
+func ScalingMat4(v Vec) Mat4 {
 	return Mat4{
 		v.X, 0, 0, 0,
 		0, v.Y, 0, 0,
@@ -59,8 +59,8 @@ func ScaleMat4(v Vec) Mat4 {
 		0, 0, 0, 1}
 }
 
-// RotationMat4 returns an orthographic 4x4 rotation matrix (right hand rule).
-func RotationMat4(angleRadians float32, axis Vec) Mat4 {
+// RotatingMat4 returns an orthographic 4x4 rotation matrix (right hand rule).
+func RotatingMat4(angleRadians float32, axis Vec) Mat4 {
 	axis = Unit(axis)
 	s, c := math.Sincos(angleRadians)
 	m := 1 - c
@@ -217,8 +217,8 @@ func (m Mat4) Array() (rowmajor [16]float32) {
 	return rowmajor
 }
 
-// RotationBetweenVecsMat4 returns the rotation matrix that transforms "start" onto the same direction as "dest".
-func RotationBetweenVecsMat4(start, dest Vec) Mat4 {
+// RotatingBetweenVecsMat4 returns the rotation matrix that transforms "start" onto the same direction as "dest".
+func RotatingBetweenVecsMat4(start, dest Vec) Mat4 {
 	// is either vector == 0?
 	const epsilon = 1e-12
 	if EqualElem(start, Vec{}, epsilon) || EqualElem(dest, Vec{}, epsilon) {

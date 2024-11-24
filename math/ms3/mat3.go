@@ -236,11 +236,11 @@ func (m Mat3) AsMat4() Mat4 {
 	}
 }
 
-// RotationMat3 returns a 3×3 rotation matrix corresponding to the receiver. It
+// RotatingMat3 returns a 3×3 rotation matrix corresponding to the receiver. It
 // may be used to perform rotations on a 3-vector or to apply the rotation
 // to a 3×n matrix of column vectors. If the receiver is not a unit
 // quaternion, the returned matrix will not be a pure rotation.
-func RotationMat3(rotationUnit Quat) Mat3 {
+func RotatingMat3(rotationUnit Quat) Mat3 {
 	w, i, j, k := rotationUnit.W, rotationUnit.I, rotationUnit.J, rotationUnit.K
 	ii := 2 * i * i
 	jj := 2 * j * j

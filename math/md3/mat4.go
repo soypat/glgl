@@ -44,8 +44,8 @@ func nanMat4() Mat4 {
 		math.NaN(), math.NaN(), math.NaN(), math.NaN()}
 }
 
-// TranslateMat4 returns a 4x4 translation matrix.
-func TranslateMat4(v Vec) Mat4 {
+// TranslatingMat4 returns a 4x4 translation matrix.
+func TranslatingMat4(v Vec) Mat4 {
 	return Mat4{
 		1, 0, 0, v.X,
 		0, 1, 0, v.Y,
@@ -53,9 +53,9 @@ func TranslateMat4(v Vec) Mat4 {
 		0, 0, 0, 1}
 }
 
-// ScaleMat4 returns a 4x4 scaling matrix.
+// ScalingMat4 returns a 4x4 scaling matrix.
 // Scaling does not preserve distance. See: ScaleUniform3D()
-func ScaleMat4(v Vec) Mat4 {
+func ScalingMat4(v Vec) Mat4 {
 	return Mat4{
 		v.X, 0, 0, 0,
 		0, v.Y, 0, 0,
@@ -63,8 +63,8 @@ func ScaleMat4(v Vec) Mat4 {
 		0, 0, 0, 1}
 }
 
-// RotationMat4 returns an orthographic 4x4 rotation matrix (right hand rule).
-func RotationMat4(angleRadians float64, axis Vec) Mat4 {
+// RotatingMat4 returns an orthographic 4x4 rotation matrix (right hand rule).
+func RotatingMat4(angleRadians float64, axis Vec) Mat4 {
 	axis = Unit(axis)
 	s, c := math.Sincos(angleRadians)
 	m := 1 - c

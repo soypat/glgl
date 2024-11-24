@@ -24,7 +24,7 @@ func (a Mat3) SVD() (U, S, V Mat3) {
 	_, qVr := ATA.jacobiEigenanalysis()
 
 	// Compute B = A * V
-	V = RotationMat3(qVr)
+	V = RotatingMat3(qVr)
 	b := MulMat3(a, V)
 
 	// Sort singular values and adjust V
