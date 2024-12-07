@@ -32,3 +32,8 @@ func SmoothStep(edge0, edge1, x float64) float64 {
 	t := Clamp((x-edge0)/(edge1-edge0), 0, 1)
 	return t * t * (3 - 2*t)
 }
+
+// EqualWithinAbs checks if a and b are within tol of eachother.
+func EqualWithinAbs(a, b, tol float64) bool {
+	return math.Abs(a-b) <= tol
+}

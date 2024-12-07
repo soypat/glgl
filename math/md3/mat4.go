@@ -6,6 +6,7 @@ package md3
 
 import (
 	math "math"
+	ms1 "github.com/soypat/glgl/math/md1"
 )
 
 // Mat4 is a 4x4 matrix.
@@ -221,8 +222,8 @@ func (m Mat4) Array() (rowmajor [16]float64) {
 	return rowmajor
 }
 
-// RotationBetweenVecsMat4 returns the rotation matrix that transforms "start" onto the same direction as "dest".
-func RotationBetweenVecsMat4(start, dest Vec) Mat4 {
+// RotatingBetweenVecsMat4 returns the rotation matrix that transforms "start" onto the same direction as "dest".
+func RotatingBetweenVecsMat4(start, dest Vec) Mat4 {
 	// is either vector == 0?
 	const epsilon = 1e-12
 	if EqualElem(start, Vec{}, epsilon) || EqualElem(dest, Vec{}, epsilon) {
@@ -263,20 +264,20 @@ func RotationBetweenVecsMat4(start, dest Vec) Mat4 {
 
 // EqualMat4 tests the equality of 4x4 matrices.
 func EqualMat4(a, b Mat4, tolerance float64) bool {
-	return (math.Abs(a.x00-b.x00) < tolerance &&
-		math.Abs(a.x01-b.x01) < tolerance &&
-		math.Abs(a.x02-b.x02) < tolerance &&
-		math.Abs(a.x03-b.x03) < tolerance &&
-		math.Abs(a.x10-b.x10) < tolerance &&
-		math.Abs(a.x11-b.x11) < tolerance &&
-		math.Abs(a.x12-b.x12) < tolerance &&
-		math.Abs(a.x13-b.x13) < tolerance &&
-		math.Abs(a.x20-b.x20) < tolerance &&
-		math.Abs(a.x21-b.x21) < tolerance &&
-		math.Abs(a.x22-b.x22) < tolerance &&
-		math.Abs(a.x23-b.x23) < tolerance &&
-		math.Abs(a.x30-b.x30) < tolerance &&
-		math.Abs(a.x31-b.x31) < tolerance &&
-		math.Abs(a.x32-b.x32) < tolerance &&
-		math.Abs(a.x33-b.x33) < tolerance)
+	return ms1.EqualWithinAbs(a.x00, b.x00, tolerance) &&
+		ms1.EqualWithinAbs(a.x01, b.x01, tolerance) &&
+		ms1.EqualWithinAbs(a.x02, b.x02, tolerance) &&
+		ms1.EqualWithinAbs(a.x03, b.x03, tolerance) &&
+		ms1.EqualWithinAbs(a.x10, b.x10, tolerance) &&
+		ms1.EqualWithinAbs(a.x11, b.x11, tolerance) &&
+		ms1.EqualWithinAbs(a.x12, b.x12, tolerance) &&
+		ms1.EqualWithinAbs(a.x13, b.x13, tolerance) &&
+		ms1.EqualWithinAbs(a.x20, b.x20, tolerance) &&
+		ms1.EqualWithinAbs(a.x21, b.x21, tolerance) &&
+		ms1.EqualWithinAbs(a.x22, b.x22, tolerance) &&
+		ms1.EqualWithinAbs(a.x23, b.x23, tolerance) &&
+		ms1.EqualWithinAbs(a.x30, b.x30, tolerance) &&
+		ms1.EqualWithinAbs(a.x31, b.x31, tolerance) &&
+		ms1.EqualWithinAbs(a.x32, b.x32, tolerance) &&
+		ms1.EqualWithinAbs(a.x33, b.x33, tolerance)
 }

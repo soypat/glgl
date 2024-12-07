@@ -5,7 +5,10 @@
 package md3
 
 import (
+	"errors"
+
 	math "math"
+	ms1 "github.com/soypat/glgl/math/md1"
 )
 
 // Mat3 is a 3x3 matrix.
@@ -55,15 +58,15 @@ func Skew(v Vec) Mat3 {
 
 // EqualMat3 tests the equality of 3x3 matrices.
 func EqualMat3(a, b Mat3, tolerance float64) bool {
-	return (math.Abs(a.x00-b.x00) < tolerance &&
-		math.Abs(a.x01-b.x01) < tolerance &&
-		math.Abs(a.x02-b.x02) < tolerance &&
-		math.Abs(a.x10-b.x10) < tolerance &&
-		math.Abs(a.x11-b.x11) < tolerance &&
-		math.Abs(a.x12-b.x12) < tolerance &&
-		math.Abs(a.x20-b.x20) < tolerance &&
-		math.Abs(a.x21-b.x21) < tolerance &&
-		math.Abs(a.x22-b.x22) < tolerance)
+	return ms1.EqualWithinAbs(a.x00, b.x00, tolerance) &&
+		ms1.EqualWithinAbs(a.x01, b.x01, tolerance) &&
+		ms1.EqualWithinAbs(a.x02, b.x02, tolerance) &&
+		ms1.EqualWithinAbs(a.x10, b.x10, tolerance) &&
+		ms1.EqualWithinAbs(a.x11, b.x11, tolerance) &&
+		ms1.EqualWithinAbs(a.x12, b.x12, tolerance) &&
+		ms1.EqualWithinAbs(a.x20, b.x20, tolerance) &&
+		ms1.EqualWithinAbs(a.x21, b.x21, tolerance) &&
+		ms1.EqualWithinAbs(a.x22, b.x22, tolerance)
 }
 
 // MulPosition multiplies a V2 position with a rotate/translate matrix.
@@ -87,7 +90,7 @@ func MulMat3(a, b Mat3) Mat3 {
 	return m
 }
 
-// AddMat3 adds two 3x3 matrices together.
+// AddMat3 adds two 3x3 matrices together and returns the result.
 func AddMat3(a, b Mat3) Mat3 {
 	return Mat3{
 		x00: a.x00 + b.x00,
@@ -99,6 +102,21 @@ func AddMat3(a, b Mat3) Mat3 {
 		x02: a.x02 + b.x02,
 		x12: a.x12 + b.x12,
 		x22: a.x22 + b.x22,
+	}
+}
+
+// SubMat3 subtracts a 3x3 matrix b from a andf returns the result.
+func SubMat3(a, b Mat3) Mat3 {
+	return Mat3{
+		x00: a.x00 - b.x00,
+		x10: a.x10 - b.x10,
+		x20: a.x20 - b.x20,
+		x01: a.x01 - b.x01,
+		x11: a.x11 - b.x11,
+		x21: a.x21 - b.x21,
+		x02: a.x02 - b.x02,
+		x12: a.x12 - b.x12,
+		x22: a.x22 - b.x22,
 	}
 }
 
@@ -259,4 +277,66 @@ func RotatingMat3(rotationUnit Quat) Mat3 {
 		1-(jj+kk), ij-wk, ki+wj,
 		ij+wk, 1-(ii+kk), jk-wi,
 		ki-wj, jk+wi, 1-(ii+jj))
+}
+
+// Hessian returns the Hessian matrix of the vector field f at point p.
+// step is the step with which the second derivative is calculated.
+func Hessian(p Vec, step float64, f func(Vec) float64) Mat3 {
+	h2 := step * step * 4
+	dx := Vec{X: step}
+	dy := Vec{Y: step}
+	dz := Vec{Z: step}
+	fp := f(p)
+	diff2 := func(p, d1, d2 Vec, f func(p Vec) float64) float64 {
+		return (f(Add(p, Add(d1, d2))) - f(Add(p, d2)) - f(Add(p, d1)) + fp) / h2
+	}
+	fxx := diff2(p, dx, dx, f)
+	fyy := diff2(p, dy, dy, f)
+	fzz := diff2(p, dz, dz, f)
+	fxy := diff2(p, dx, dy, f)
+	fxz := diff2(p, dx, dz, f)
+	fyz := diff2(p, dy, dz, f)
+	return mat3(
+		fxx, fxy, fxz,
+		fxy, fyy, fyz,
+		fxz, fyz, fzz,
+	)
+}
+
+// Eigs returns the real and imaginary parts of the 3 eigenvalues of m. It returns a non-nil error if it is unable to solve.
+func (m Mat3) Eigs() (r, c [3]float64, err error) {
+	const tol = 1e-12
+	if !ms1.EqualWithinAbs(m.x01, m.x10, tol) ||
+		!ms1.EqualWithinAbs(m.x12, m.x21, tol) ||
+		!ms1.EqualWithinAbs(m.x02, m.x20, tol) {
+		return r, c, errors.New("non-symmetric eigenvalue algorithm not implemented")
+	}
+	// 3*m = tr(A)
+	M := (m.x00 + m.x11 + m.x22) / 3
+	// Calculate  2*q=det(A-m*I)
+	nm := ScaleMat3(IdentityMat3(), M)
+	nm = SubMat3(m, nm)
+	q := nm.Determinant() / 2
+	// 6*p = sum of squares of elements of A-m*I
+	const sixdiv = 1. / 6
+	var p float64
+	for _, v := range nm.Array() {
+		p += sixdiv * v * v
+	}
+
+	if math.Abs(p) < tol && math.Abs(q) < tol {
+		// p == q == 0
+		return [3]float64{M, M, M}, [3]float64{}, nil
+	}
+	// sqrt(3)
+	const sqrt3 = 1.7320508075688772935274463415058723669428052538103806280558069794
+	// phi = 1/3 atan( sqrt(p^3 - q^2)/q ), 0<=phi<=pi
+	phi := math.Atan(math.Sqrt(p*p*p-q*q)/q) / 3
+	sp, cp := math.Sincos(phi)
+	sqrtp := math.Sqrt(p)
+	return [3]float64{
+		M + 2*sqrtp*cp,
+		M - sqrtp*(cp+sqrt3*sp),
+		M - sqrtp*(cp-sqrt3*sp),
+	}, [3]float64{}, nil
 }

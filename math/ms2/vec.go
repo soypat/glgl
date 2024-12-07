@@ -147,8 +147,7 @@ func DivElem(a, b Vec) Vec {
 
 // EqualElem checks equality between vector elements to within a tolerance.
 func EqualElem(a, b Vec, tol float32) bool {
-	return math.Abs(a.X-b.X) <= tol &&
-		math.Abs(a.Y-b.Y) <= tol
+	return ms1.EqualWithinAbs(a.X, b.X, tol) && ms1.EqualWithinAbs(a.Y, b.Y, tol)
 }
 
 // elem returns a vector with all elements of magnitude length.
