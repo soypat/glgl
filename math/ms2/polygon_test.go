@@ -106,3 +106,30 @@ func TestArc_radiusLimitBug(t *testing.T) {
 	}
 	t.Log(vecs)
 }
+
+func TestPolygon_IsClockwise(t *testing.T) {
+	var tests = []struct {
+		verts  []Vec
+		wantCW bool
+	}{
+		{ // Counterclockwise triangle.
+			verts:  []Vec{{X: 0, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 0}},
+			wantCW: false,
+		},
+		{ // Clockwise triangle.
+			verts:  []Vec{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}},
+			wantCW: true,
+		},
+	}
+	var poly PolygonBuilder
+	for _, test := range tests {
+		poly.Reset()
+		for _, v := range test.verts {
+			poly.Add(v)
+		}
+		gotCW := poly.IsClockwise()
+		if test.wantCW != gotCW {
+			t.Errorf("want CW=%v got CW=%v", test.wantCW, gotCW)
+		}
+	}
+}
