@@ -137,6 +137,9 @@ func (a Box) Contains(point Vec) bool {
 		a.Min.Y <= point.Y && point.Y <= a.Max.Y
 }
 
+// ContainsBox returns true if argument box is fully contained within receiver box.
+func (a Box) ContainsBox(b Box) bool { return a.Contains(b.Min) && a.Contains(b.Max) }
+
 // Equal returns true if a and b are within tol of eachother for each box limit component.
 func (a Box) Equal(b Box, tol float64) bool {
 	return EqualElem(a.Min, b.Min, tol) && EqualElem(a.Max, b.Max, tol)

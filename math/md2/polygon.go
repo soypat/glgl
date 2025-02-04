@@ -101,6 +101,22 @@ func (p *PolygonBuilder) Reset() {
 	p.verts = p.verts[:0]
 }
 
+// IsClockwise checks if the polygon vertices are arranged in a clockwise order.
+// Polygon must not be self-intersecting and have at least 3 vertices.
+func (p *PolygonBuilder) IsClockwise() bool {
+	if len(p.verts) < 3 {
+		return false
+	}
+	vPrev := p.verts[len(p.verts)-1].v
+	var windingSum float64
+	for i := 0; i < len(p.verts); i++ {
+		v := p.verts[i].v
+		windingSum += (v.X - vPrev.X) * (v.Y + vPrev.Y)
+		vPrev = v
+	}
+	return windingSum < 0
+}
+
 // AppendVecs appends the Polygon's discretized representation to the argument Vec buffer and returns the result.
 // It does not change the internal state of the PolygonBuilder and thus can be called repeatedly.
 func (p *PolygonBuilder) AppendVecs(buf []Vec) ([]Vec, error) {
