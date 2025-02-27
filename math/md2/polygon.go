@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	math "math"
+	"github.com/soypat/glgl/math/internal"
 )
 
 type cpAtIdxErr struct {
@@ -210,17 +211,22 @@ func arcCenterFrom2points(p1, p2 Vec, r float64) (Vec, float64, error) {
 	V12 := Sub(p2, p1)
 	chordCenter := Add(p1, Scale(0.5, V12))
 	chordLen := Norm(V12)   // Chord length.
-	maxChordLen := 2 * rabs //
-	if chordLen-maxChordLen > arcTol {
-		return Vec{}, 0, errSmallArcRadius
+	maxChordLen := 2 * rabs // Make sure the perimeter of a arc with infinite radius is less than the chord.
+	if chordLen == 0 {
+		return Vec{}, 0, errArcCPEqualToPrev
+	} else if maxChordLen-chordLen < -internal.Smallfloat64 {
+		return Vec{}, 0, errBadArc
+	} else if math.Abs(chordLen/maxChordLen-1) < internal.Smallfloat64 {
+		return Scale(0.5, Add(p1, p2)), math.Copysign(math.Pi/2, r), nil
 	}
 	// Theta is the opening angle from the center of the arc circle
 	// to the two chord points.
 	// Due to chord definition theta/2 is the angle formed
 	// by the chord and the tangent to the chord point.
-	chordThetaDiv2 := math.Asin(chordLen / (2 * rabs))
+	sinTheta := chordLen / (2 * rabs)
+	chordThetaDiv2 := math.Asin(sinTheta)
 	diffTo90 := chordThetaDiv2 - math.Pi/2
-	if math.Abs(diffTo90) < 1e-6 {
+	if math.Abs(diffTo90) < internal.Smallfloat64/10 {
 		// Ill conditioned arc. Do a little correction away from the 90 degree mark.
 		chordThetaDiv2 += math.Copysign(1e-6, -diffTo90)
 	}
@@ -246,6 +252,8 @@ var (
 	errSmallArcRadius    = errors.New("arc radius too small")
 	errBadSmooth         = errors.New("badly conditioned smoothing")
 	errCPEqualToPrev     = errors.New("equal to previous control point")
+	errArcCPEqualToPrev  = errors.New("arc start equal to end point")
+	errBadArc            = errors.New("invalid arc")
 )
 
 func appendSmoothedCorner(dst []Vec, p0, p1, p2 Vec, r float64, facets int32) ([]Vec, error) {
