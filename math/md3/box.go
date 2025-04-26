@@ -11,6 +11,8 @@ import (
 // Box is a 3D bounding box. Well formed Boxes Min components
 // are smaller than Max components. Max is the most positive/largest vertex,
 // Min is the most negative/smallest vertex.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Box struct {
 	Min, Max Vec
 }

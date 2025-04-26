@@ -5,6 +5,8 @@ import (
 )
 
 // Mat2 is a 2x2 matrix.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Mat2 struct {
 	x00, x01 float32
 	x10, x11 float32

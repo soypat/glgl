@@ -10,6 +10,8 @@ import (
 )
 
 // Vec is a 2D vector. It is composed of 2 float64 fields for x and y values in that order.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Vec struct {
 	X, Y float64
 }

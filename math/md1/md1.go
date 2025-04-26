@@ -51,6 +51,8 @@ func DefaultNewtonRaphsonSolver() NewtonRaphsonSolver {
 }
 
 // NewtonRaphsonSolver implements Newton-Raphson root finding algorithm for an arbitrary function.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type NewtonRaphsonSolver struct {
 	// MaxIterations specifies how many iterations of Newton's succesive
 	// approximations to perform. Each iteration evaluates function 3 times. Parameter is required.

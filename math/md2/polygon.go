@@ -25,6 +25,8 @@ const arcTol = 5e-1
 
 // PolygonBuilder facilitates polygon construction with arcs, smoothing and chamfers
 // with the [PolygonControlPoint] type.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type PolygonBuilder struct {
 	verts []PolygonControlPoint
 }

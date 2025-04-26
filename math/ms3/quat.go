@@ -50,6 +50,8 @@ const (
 // The imaginary V part is guaranteed to have an offset of zero in the Quat struct:
 //
 //	unsafe.Offsetof(q.V) // == 0
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Quat struct {
 	// V contains I, J and K imaginary parts.
 	I, J, K float32

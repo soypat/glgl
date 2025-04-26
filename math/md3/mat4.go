@@ -10,6 +10,8 @@ import (
 )
 
 // Mat4 is a 4x4 matrix.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Mat4 struct {
 	x00, x01, x02, x03 float64
 	x10, x11, x12, x13 float64

@@ -9,6 +9,8 @@ import (
 // of each of the vertices. Ordering of these vertices
 // decides the "normal" direction.
 // Inverting ordering of two vertices inverts the resulting direction.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Triangle [3]Vec
 
 // Centroid returns the intersection of the three medians of the triangle

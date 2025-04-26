@@ -11,6 +11,8 @@ import math "github.com/chewxy/math32"
 //	grid := ms3.AppendGrid(nil, domain, nx, ny, nz)
 //	ix, iy, iz := 1, 0, 3
 //	pos := grid[iz*(nx+ny) + iy*nx + ix]
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 func AppendGrid(dst []Vec, domain Box, nx, ny, nz int) []Vec {
 	if nx <= 1 || ny <= 1 || nz <= 1 {
 		panic("AppendGrid needs more grid subdivisions")
@@ -46,6 +48,8 @@ func AppendGrid(dst []Vec, domain Box, nx, ny, nz int) []Vec {
 //			}
 //		}
 //	}
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 func GridSubdomain(domain Box, nxDomain, nyDomain, nzDomain int, subdomain Box) (iStart, nxSub, nySub, nzSub int) {
 	if !domain.ContainsBox(subdomain) {
 		panic("subdomain not contained in domain")

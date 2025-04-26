@@ -40,3 +40,16 @@ type AttribLayout struct {
 	Normalize bool
 }
 ```
+
+## Migration to `geometry` package
+The `math` package is being moved to [`soypat/geometry`](https://github.com/soypat/geometry). To migrate replace the following import paths in your project:
+
+- `"github.com/soypat/glgl/math/ms1"` -> `"github.com/soypat/geometry/ms1"`
+- `"github.com/soypat/glgl/math/ms2"` -> `"github.com/soypat/geometry/ms2"`
+- `"github.com/soypat/glgl/math/ms3"` -> `"github.com/soypat/geometry/ms3"`
+- `"github.com/soypat/glgl/math/md1"` -> `"github.com/soypat/geometry/md1"`
+- `"github.com/soypat/glgl/math/md2"` -> `"github.com/soypat/geometry/md2"`
+- `"github.com/soypat/glgl/math/md3"` -> `"github.com/soypat/geometry/md3"`
+
+Or more simply, run a single replace directive in all of your project:
+- `"github.com/soypat/glgl/math/` -> `"github.com/soypat/geometry/`

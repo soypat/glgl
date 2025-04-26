@@ -8,6 +8,8 @@ import (
 )
 
 // Mat3 is a 3x3 matrix.
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Mat3 struct {
 	x00, x01, x02 float32
 	x10, x11, x12 float32

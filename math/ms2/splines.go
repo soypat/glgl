@@ -18,6 +18,8 @@ package ms2
 //		}
 //	}
 //	plot(curve)
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 type Spline3 struct {
 	m mat4
 }

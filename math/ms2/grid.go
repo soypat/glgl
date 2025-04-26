@@ -13,6 +13,8 @@ import (
 //	grid := ms2.AppendGrid(nil, domain, nx, ny)
 //	ix, iy := 1, 0
 //	pos := grid[iy*nx + ix]
+//
+// Deprecated: Maintenance of glgl math packages is moving to https://github.com/soypat/geometry.
 func AppendGrid(dst []Vec, domain Box, nx, ny int) []Vec {
 	if nx <= 1 || ny <= 1 {
 		panic("AppendGrid needs more grid subdivisions")
