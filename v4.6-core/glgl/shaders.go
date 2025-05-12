@@ -121,9 +121,6 @@ func (p Program) SetUniformui(loc int32, ints ...uint32) error {
 // and returns a program with the current OpenGL context.
 // It returns an error if compilation, linking or validation fails.
 func compileSources(ss ShaderSource) (program Program, err error) {
-	if err := Err(); err != nil {
-		return Program{}, fmt.Errorf("unhandled error before compiling: %w", err)
-	}
 	// Note: glDeleteShader only flags a shader for deletion.
 	// They are not deleted until they are detached from the program.
 	// Beware: multiple calls to glDeleteShader on the same shader will cause an error on GL's side.
@@ -145,9 +142,9 @@ func compileSources(ss ShaderSource) (program Program, err error) {
 			gl.DeleteShader(sid)
 		}
 	}()
-
+	flags := ss.CompileFlags
 	if len(ss.Vertex) > 0 {
-		vid, err := compile(gl.VERTEX_SHADER, ss.Vertex)
+		vid, err := compile(gl.VERTEX_SHADER, flags, ss.Vertex)
 		if err != nil {
 			return Program{}, fmt.Errorf("vertex shader compile: %w", err)
 		}
@@ -155,7 +152,7 @@ func compileSources(ss ShaderSource) (program Program, err error) {
 		shaders = append(shaders, vid) // for cleanup
 	}
 	if len(ss.Fragment) > 0 {
-		fid, err := compile(gl.FRAGMENT_SHADER, ss.Fragment)
+		fid, err := compile(gl.FRAGMENT_SHADER, flags, ss.Fragment)
 		if err != nil {
 			return Program{}, fmt.Errorf("fragment shader compile: %w", err)
 		}
@@ -163,7 +160,7 @@ func compileSources(ss ShaderSource) (program Program, err error) {
 		shaders = append(shaders, fid) // for cleanup
 	}
 	if len(ss.Compute) > 0 {
-		cid, err := compile(gl.COMPUTE_SHADER, ss.Compute)
+		cid, err := compile(gl.COMPUTE_SHADER, flags, ss.Compute)
 		if err != nil {
 			return Program{}, fmt.Errorf("compute shader compile: %w", err)
 		}
@@ -172,25 +169,26 @@ func compileSources(ss ShaderSource) (program Program, err error) {
 	}
 
 	gl.LinkProgram(program.rid)
-	log := ivLog(program.rid, gl.LINK_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
-	if len(log) > 0 {
-		return Program{}, fmt.Errorf("link failed: %v", log)
-	}
-	linked = true
-	// We should technically call DetachShader after linking... https://www.youtube.com/watch?v=71BLZwRGUJE&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=7&ab_channel=TheCherno
-	gl.ValidateProgram(program.rid)
-	log = ivLog(program.rid, gl.VALIDATE_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
-	if len(log) > 0 {
-		return Program{}, fmt.Errorf("validation failed: %v", log)
+	if flags.checkLink() {
+		err = ivLogErr(program.rid, gl.LINK_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
+		if err != nil {
+			return Program{}, fmt.Errorf("link failed: %w", err)
+		}
 	}
 
-	return program, Err()
+	// Link flag set so shaders detached on return, see: https://www.youtube.com/watch?v=71BLZwRGUJE&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=7&ab_channel=TheCherno
+	linked = true
+	if flags.validateProgram() {
+		gl.ValidateProgram(program.rid)
+		err = ivLogErr(program.rid, gl.VALIDATE_STATUS, gl.GetProgramiv, gl.GetProgramInfoLog)
+		if err != nil {
+			return Program{}, fmt.Errorf("validation failed: %w", err)
+		}
+	}
+	return program, nil
 }
 
-func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
-	if err := Err(); err != nil {
-		return 0, fmt.Errorf("unhandled error before compiling: %w", err)
-	}
+func compile(shaderType uint32, flags CompileFlags, sourceCodes ...string) (uint32, error) {
 	var sourceLengths []int32
 	for i := range sourceCodes {
 		if !strings.HasSuffix(sourceCodes[i], "\x00") {
@@ -211,18 +209,27 @@ func compile(shaderType uint32, sourceCodes ...string) (uint32, error) {
 	free()
 
 	gl.CompileShader(id)
-	if err := Err(); err != nil {
-		return 0, fmt.Errorf("error after compiling shader: %w", err)
-	}
 	// We now check the errors during compile, if there were any.
-	log := ivLog(id, gl.COMPILE_STATUS, gl.GetShaderiv, gl.GetShaderInfoLog)
-	if len(log) > 0 {
-		return 0, errors.New(log)
+	if flags.checkCompile() {
+		err := ivLogErr(id, gl.COMPILE_STATUS, gl.GetShaderiv, gl.GetShaderInfoLog)
+		if err != nil {
+			return 0, err
+		}
 	}
-	// if !gl.IsShader(id) {
-	// 	return 0, errors.New("shader ID unexpectedly does not correspond to shader")
-	// }
-	return id, Err()
+	return id, nil
+}
+
+// ivLogErr calls ivLog expecting an error in return parameter. It also calls [Err] on getting a non-empty log message and joins both.
+func ivLogErr(id, plName uint32, getIV func(program uint32, pname uint32, params *int32), getInfo func(program uint32, bufSize int32, length *int32, infoLog *uint8)) error {
+	log := ivLog(id, plName, getIV, getInfo)
+	if len(log) > 0 {
+		err := errors.New(log)
+		if err2 := Err(); err2 != nil {
+			return errors.Join(err, err2)
+		}
+		return err
+	}
+	return nil
 }
 
 // ivLog is a helper function for extracting log data

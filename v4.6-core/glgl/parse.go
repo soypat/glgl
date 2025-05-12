@@ -14,6 +14,9 @@ type ShaderSource struct {
 	Fragment string
 	Compute  string
 	Include  string
+
+	// CompileFlags controls how program is compiled. See [CompileFlags].
+	CompileFlags CompileFlags
 }
 
 // ParseCombinedBasic parses a file with vertex and fragment #shader pragmas inspired
@@ -106,3 +109,31 @@ func ParseCombined(r io.Reader) (ss ShaderSource, err error) {
 		Include:  string(isrc),
 	}, scanner.Err()
 }
+
+// CompileFlags controls how the shader is compiled. Currently serves to control error handling vs performance tradeoffs.
+type CompileFlags uint64
+
+// Base compiler flags.
+const (
+	// CompileFlagValidateProgram flags that a validation of the program should be done. This can be an expensive operation
+	// and should only be reserved for debug and test builds to avoid wasting cycles.
+	CompileFlagValidateProgram CompileFlags = 1 << iota // validate program
+	// Omits error handling during shader compile. Setting may cause hard to debug errors.
+	CompileFlagNoCompileCheck // no compile check
+	// Omits error handling during shader linking. Setting may cause hard to debug errors.
+	CompileFlagNoLinkCheck // no link check
+)
+
+// Composed compiler flags.
+const (
+	// CompileFlagsLax disables all error handling down to the bare minimum, performing less error handling for the benefit of performance.
+	// Note that the returned shader is not guaranteed to be valid if this is set. It is strongly suggested the user call [Err] at some point after compiling if using this setting.
+	// Set when preferring performance over program correctness. Is polar opposite of [CompileFlagsStrict].
+	CompileFlagsLax = CompileFlagNoCompileCheck | CompileFlagNoLinkCheck
+	// CompileFlagsStrict enables all stricter error handling options and checking throughout the compile step. Is polar opposite of [CompileFlagsLax].
+	CompileFlagsStrict = CompileFlagValidateProgram
+)
+
+func (cf CompileFlags) checkCompile() bool    { return cf&CompileFlagNoCompileCheck == 0 }
+func (cf CompileFlags) checkLink() bool       { return cf&CompileFlagNoLinkCheck == 0 }
+func (cf CompileFlags) validateProgram() bool { return cf&CompileFlagValidateProgram != 0 }

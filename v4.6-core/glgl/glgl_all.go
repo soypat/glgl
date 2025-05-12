@@ -31,6 +31,7 @@ func CompileProgram(ss ShaderSource) (prog Program, err error) {
 		}
 		return Program{}, errors.New("empty program")
 	}
+
 	prog, err = compileSources(ss)
 	return prog, err
 }
