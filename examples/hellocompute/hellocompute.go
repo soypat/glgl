@@ -30,10 +30,12 @@ var compute string
 
 func main() {
 	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:   "compute",
-		Version: [2]int{4, 6},
-		Width:   width,
-		Height:  height,
+		Title:         "compute",
+		Version:       [2]int{3, 3},
+		Width:         width,
+		Height:        height,
+		OpenGLProfile: glgl.ProfileCore,
+		ForwardCompat: true,
 	})
 	if err != nil {
 		slog.Error("initializing", "err", err.Error())

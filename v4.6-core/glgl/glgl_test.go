@@ -10,8 +10,9 @@ func TestWindow(t *testing.T) {
 	window, term, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
 		Title:         "My great window",
 		NotResizable:  false,
-		Version:       [2]int{4, 6},
+		Version:       [2]int{3, 3},
 		OpenGLProfile: glgl.ProfileCore,
+		ForwardCompat: true,
 		Width:         1,
 		Height:        1,
 	})

@@ -32,8 +32,8 @@ func InitWithCurrentWindow33(cfg WindowConfig) (*Window, func(), error) {
 		glfw.WindowHint(glfw.ContextVersionMajor, cfg.Version[0])
 		glfw.WindowHint(glfw.ContextVersionMinor, cfg.Version[1])
 	} else {
-		glfw.WindowHint(glfw.ContextVersionMajor, 4)
-		glfw.WindowHint(glfw.ContextVersionMinor, 6)
+		glfw.WindowHint(glfw.ContextVersionMajor, 3)
+		glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	}
 	glfw.WindowHint(glfw.OpenGLProfile, zdefault(cfg.OpenGLProfile, glfw.OpenGLCoreProfile))
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, b2i(cfg.ForwardCompat))

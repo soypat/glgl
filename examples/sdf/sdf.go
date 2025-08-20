@@ -35,10 +35,12 @@ func makeScene() SDFShaderer {
 func main() {
 	// Initialize the GL.
 	_, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:   "compute",
-		Version: [2]int{4, 6},
-		Width:   1,
-		Height:  1,
+		Title:         "compute",
+		Version:       [2]int{4, 6},
+		Width:         1,
+		Height:        1,
+		OpenGLProfile: glgl.ProfileCore,
+		ForwardCompat: true,
 	})
 	if err != nil {
 		log.Fatal(err)

@@ -29,9 +29,11 @@ func init() {
 
 func main() {
 	window, terminate, err := glgl.InitWithCurrentWindow33(glgl.WindowConfig{
-		Title:  "Hello triangle",
-		Width:  800,
-		Height: 800,
+		Title:         "Hello triangle",
+		Width:         800,
+		Height:        800,
+		OpenGLProfile: glgl.ProfileCore,
+		ForwardCompat: true,
 	})
 	if err != nil {
 		log.Fatalln("failed to initialize glfw:", err)
